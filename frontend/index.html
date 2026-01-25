@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyCloset - AI Wardrobe Assistant</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <h1>MyCloset</h1>
+            <p class="tagline">Your AI-Powered Wardrobe Assistant</p>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="tabs">
+            <button class="tab active" data-tab="wardrobe">My Wardrobe</button>
+            <button class="tab" data-tab="recommend">Get Outfit</button>
+            <button class="tab" data-tab="add">Add Clothes</button>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="content">
+            <!-- Wardrobe Tab -->
+            <section id="wardrobe" class="tab-content active">
+                <div class="section-header">
+                    <h2>My Wardrobe</h2>
+                    <div class="filters">
+                        <select id="category-filter">
+                            <option value="">All Categories</option>
+                            <option value="top">Tops</option>
+                            <option value="bottom">Bottoms</option>
+                            <option value="dress">Dresses</option>
+                            <option value="outerwear">Outerwear</option>
+                            <option value="shoes">Shoes</option>
+                            <option value="accessory">Accessories</option>
+                            <option value="activewear">Activewear</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="wardrobe-grid" class="wardrobe-grid">
+                    <div class="empty-state">
+                        <p>Your wardrobe is empty!</p>
+                        <p>Start by adding some clothes.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Recommendations Tab -->
+            <section id="recommend" class="tab-content">
+                <div class="recommend-form">
+                    <h2>Get Outfit Recommendations</h2>
+                    <form id="recommend-form">
+                        <div class="form-group">
+                            <label for="event-type">What's the occasion?</label>
+                            <select id="event-type" required>
+                                <option value="">Select an occasion...</option>
+                                <option value="work">Work / Office</option>
+                                <option value="casual">Casual Day Out</option>
+                                <option value="date">Date Night</option>
+                                <option value="party">Party</option>
+                                <option value="formal">Formal Event</option>
+                                <option value="wedding">Wedding</option>
+                                <option value="workout">Workout / Gym</option>
+                                <option value="outdoor">Outdoor Activity</option>
+                                <option value="beach">Beach / Pool</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="location">Your Location (for weather)</label>
+                            <input type="text" id="location" placeholder="e.g., New York, London, Tokyo">
+                        </div>
+                        <div class="form-group">
+                            <label for="manual-weather">Or describe the weather manually</label>
+                            <input type="text" id="manual-weather" placeholder="e.g., Hot and sunny, Cold and rainy">
+                        </div>
+                        <div class="form-group">
+                            <label for="preferences">Any preferences? (optional)</label>
+                            <textarea id="preferences" placeholder="e.g., I want to wear something comfortable, prefer blue colors..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Get Recommendations</button>
+                    </form>
+                </div>
+                <div id="recommendations-results" class="recommendations-results hidden">
+                    <div class="weather-info" id="weather-info"></div>
+                    <div id="outfits-container"></div>
+                </div>
+                <div id="loading" class="loading hidden">
+                    <div class="spinner"></div>
+                    <p>Finding the perfect outfits for you...</p>
+                </div>
+            </section>
+
+            <!-- Add Clothes Tab -->
+            <section id="add" class="tab-content">
+                <div class="add-form">
+                    <h2>Add New Item</h2>
+                    <p class="form-description">Upload a photo of your clothing item and our AI will automatically analyze it!</p>
+                    <form id="add-form">
+                        <div class="upload-area" id="upload-area">
+                            <input type="file" id="image-input" accept="image/*" hidden>
+                            <div class="upload-placeholder" id="upload-placeholder">
+                                <div class="upload-icon">+</div>
+                                <p>Click or drag to upload an image</p>
+                            </div>
+                            <img id="image-preview" class="image-preview hidden" alt="Preview">
+                        </div>
+                        <div class="form-group">
+                            <label for="item-name">Custom Name (optional)</label>
+                            <input type="text" id="item-name" placeholder="AI will generate a name if left blank">
+                        </div>
+                        <button type="submit" class="btn btn-primary" id="upload-btn" disabled>Upload & Analyze</button>
+                    </form>
+                    <div id="upload-status" class="upload-status hidden"></div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Item Detail Modal -->
+        <div id="item-modal" class="modal hidden">
+            <div class="modal-content">
+                <button class="modal-close">&times;</button>
+                <div class="modal-body" id="modal-body"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
