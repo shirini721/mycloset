@@ -7,31 +7,56 @@ let currentTab = 'wardrobe';
 let wardrobeItems = [];
 let selectedFile = null;  // Store the selected file for upload
 
-// DOM Elements
-const tabs = document.querySelectorAll('.tab');
-const tabContents = document.querySelectorAll('.tab-content');
-const wardrobeGrid = document.getElementById('wardrobe-grid');
-const categoryFilter = document.getElementById('category-filter');
-const recommendForm = document.getElementById('recommend-form');
-const addForm = document.getElementById('add-form');
-const imageInput = document.getElementById('image-input');
-const uploadArea = document.getElementById('upload-area');
-const uploadPlaceholder = document.getElementById('upload-placeholder');
-const imagePreview = document.getElementById('image-preview');
-const uploadBtn = document.getElementById('upload-btn');
-const uploadStatus = document.getElementById('upload-status');
-const itemModal = document.getElementById('item-modal');
-const modalBody = document.getElementById('modal-body');
-const modalClose = document.querySelector('.modal-close');
+// DOM Elements - initialized in init()
+let tabs, tabContents, wardrobeGrid, categoryFilter, recommendForm, addForm;
+let imageInput, uploadArea, uploadPlaceholder, imagePreview, uploadBtn, uploadStatus;
+let itemModal, modalBody, modalClose;
 
 // Initialize
-document.addEventListener('DOMContentLoaded', () => {
+function init() {
+    console.log('[MyCloset] Initializing...');
+
+    // Get DOM elements
+    tabs = document.querySelectorAll('.tab');
+    tabContents = document.querySelectorAll('.tab-content');
+    wardrobeGrid = document.getElementById('wardrobe-grid');
+    categoryFilter = document.getElementById('category-filter');
+    recommendForm = document.getElementById('recommend-form');
+    addForm = document.getElementById('add-form');
+    imageInput = document.getElementById('image-input');
+    uploadArea = document.getElementById('upload-area');
+    uploadPlaceholder = document.getElementById('upload-placeholder');
+    imagePreview = document.getElementById('image-preview');
+    uploadBtn = document.getElementById('upload-btn');
+    uploadStatus = document.getElementById('upload-status');
+    itemModal = document.getElementById('item-modal');
+    modalBody = document.getElementById('modal-body');
+    modalClose = document.querySelector('.modal-close');
+
+    // Check critical elements exist
+    if (!uploadArea || !imageInput || !uploadBtn || !addForm) {
+        console.error('[MyCloset] Critical DOM elements not found!');
+        return;
+    }
+
+    console.log('[MyCloset] DOM elements found, setting up...');
+
     initTabs();
+    initCategoryFilter();
     initUploadArea();
     initForms();
     initModal();
     loadWardrobe();
-});
+
+    console.log('[MyCloset] Initialization complete');
+}
+
+// Run init when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
 
 // Tab Navigation
 function initTabs() {
@@ -101,10 +126,14 @@ function renderWardrobe() {
     `).join('');
 }
 
-// Category Filter
-categoryFilter.addEventListener('change', (e) => {
-    loadWardrobe(e.target.value);
-});
+// Category Filter - moved into initForms()
+function initCategoryFilter() {
+    if (categoryFilter) {
+        categoryFilter.addEventListener('change', (e) => {
+            loadWardrobe(e.target.value);
+        });
+    }
+}
 
 // Upload Area
 function initUploadArea() {
