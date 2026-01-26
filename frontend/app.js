@@ -526,68 +526,160 @@ async function disconnectGmail() {
     }
 }
 
-async function searchOrders() {
+// Track selected staged images
+let selectedStagedImages = new Set();
+
+async function scanEmails() {
     const daysBack = document.getElementById('days-back').value;
     const includeSeen = document.getElementById('include-seen').checked;
-    const loadingDiv = document.getElementById('orders-loading');
-    const resultsDiv = document.getElementById('orders-results');
-    const ordersList = document.getElementById('orders-list');
-    const summaryP = document.getElementById('results-summary');
+    const loadingDiv = document.getElementById('scan-loading');
+    const resultsDiv = document.getElementById('scan-results');
+    const summaryP = document.getElementById('scan-summary');
 
     loadingDiv.classList.remove('hidden');
     resultsDiv.classList.add('hidden');
 
     try {
-        const response = await fetch(`${API_BASE}/api/gmail/orders?days=${daysBack}&include_seen=${includeSeen}`);
+        const response = await fetch(`${API_BASE}/api/gmail/scan?days=${daysBack}&include_seen=${includeSeen}`, {
+            method: 'POST'
+        });
         const data = await response.json();
 
         loadingDiv.classList.add('hidden');
+
+        if (!response.ok) {
+            alert(`Error: ${data.detail || 'Failed to scan emails'}`);
+            return;
+        }
+
         resultsDiv.classList.remove('hidden');
+        summaryP.textContent = `Scan complete! Processed ${data.emails_processed} emails, found ${data.images_staged} new images.`;
 
-        // Handle server errors
-        if (!response.ok && !data.rate_limited) {
-            summaryP.innerHTML = `<span class="error-message">Error: ${data.detail || 'Failed to search emails'}</span>`;
-            ordersList.innerHTML = '';
+        // Refresh staged images
+        loadStagedImages();
+
+    } catch (error) {
+        console.error('Error scanning emails:', error);
+        loadingDiv.classList.add('hidden');
+        alert(`Error: ${error.message}`);
+    }
+}
+
+async function loadStagedImages() {
+    const container = document.getElementById('staged-images');
+    const emptyState = document.getElementById('staged-empty');
+
+    try {
+        const response = await fetch(`${API_BASE}/api/gmail/staged?status=pending&limit=100`);
+        const data = await response.json();
+
+        if (data.images.length === 0) {
+            container.innerHTML = '';
+            emptyState.classList.remove('hidden');
             return;
         }
 
-        if (data.orders.length === 0) {
-            summaryP.textContent = 'No clothing orders found in your email.';
-            ordersList.innerHTML = '';
-            return;
-        }
-
-        // Handle rate limit with partial results
-        if (data.rate_limited) {
-            summaryP.innerHTML = `<span class="rate-limit-warning">⚠️ Rate limit reached - showing ${data.count} order(s) found before limit. Try again later for more.</span>`;
-        } else {
-            summaryP.textContent = `Found ${data.count} order(s) with product images.`;
-        }
-
-        ordersList.innerHTML = data.orders.map(order => `
-            <div class="order-card">
-                <div class="order-header">
-                    <span class="order-retailer">${order.retailer}</span>
-                    <span class="order-date">${order.date}</span>
-                </div>
-                <div class="order-subject">${order.subject}</div>
-                <div class="order-images">
-                    ${order.images.slice(0, 5).map((img, idx) => `
-                        <div class="order-image-item">
-                            <img src="${img.url}" alt="${img.alt || 'Product'}" onerror="this.parentElement.style.display='none'">
-                            <button class="import-btn" onclick="importFromEmail('${encodeURIComponent(img.url)}', '${encodeURIComponent(img.alt || '')}', this)">
-                                Add to Closet
-                            </button>
-                        </div>
-                    `).join('')}
+        emptyState.classList.add('hidden');
+        container.innerHTML = data.images.map(img => `
+            <div class="staged-image-card" data-id="${img.id}" onclick="toggleStagedImage(${img.id}, this)">
+                <img src="${img.image_url}" alt="${img.alt_text || 'Product'}" onerror="this.parentElement.style.display='none'">
+                <button class="add-btn" onclick="event.stopPropagation(); importStagedImage(${img.id}, this)">
+                    Add to Closet
+                </button>
+                <div class="staged-image-info">
+                    <div class="retailer">${img.retailer}</div>
+                    <div class="date">${img.email_date ? img.email_date.split(' ').slice(0, 4).join(' ') : ''}</div>
                 </div>
             </div>
         `).join('');
 
+        selectedStagedImages.clear();
+        updateRejectButton();
+
     } catch (error) {
-        console.error('Error searching orders:', error);
-        loadingDiv.classList.add('hidden');
+        console.error('Error loading staged images:', error);
+    }
+}
+
+function toggleStagedImage(id, element) {
+    if (selectedStagedImages.has(id)) {
+        selectedStagedImages.delete(id);
+        element.classList.remove('selected');
+    } else {
+        selectedStagedImages.add(id);
+        element.classList.add('selected');
+    }
+    updateRejectButton();
+}
+
+function updateRejectButton() {
+    const btn = document.getElementById('reject-selected-btn');
+    btn.disabled = selectedStagedImages.size === 0;
+    btn.textContent = selectedStagedImages.size > 0
+        ? `Reject Selected (${selectedStagedImages.size})`
+        : 'Reject Selected';
+}
+
+async function rejectSelectedImages() {
+    if (selectedStagedImages.size === 0) return;
+
+    if (!confirm(`Reject ${selectedStagedImages.size} selected images?`)) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/gmail/staged/action`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                image_ids: Array.from(selectedStagedImages),
+                action: 'reject'
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to reject images');
+        }
+
+        loadStagedImages();
+    } catch (error) {
+        console.error('Error rejecting images:', error);
         alert(`Error: ${error.message}`);
+    }
+}
+
+async function importStagedImage(imageId, buttonElement) {
+    buttonElement.disabled = true;
+    buttonElement.textContent = 'Adding...';
+
+    try {
+        const response = await fetch(`${API_BASE}/api/gmail/staged/${imageId}/import`, {
+            method: 'POST'
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Import failed');
+        }
+
+        buttonElement.textContent = 'Added!';
+        buttonElement.classList.add('added');
+
+        // Remove from grid after short delay
+        setTimeout(() => {
+            const card = buttonElement.closest('.staged-image-card');
+            if (card) card.remove();
+
+            // Check if empty
+            const container = document.getElementById('staged-images');
+            if (container.children.length === 0) {
+                document.getElementById('staged-empty').classList.remove('hidden');
+            }
+        }, 1000);
+
+    } catch (error) {
+        console.error('Error importing image:', error);
+        buttonElement.textContent = 'Failed';
+        buttonElement.disabled = false;
+        alert(`Import failed: ${error.message}`);
     }
 }
 
@@ -631,7 +723,9 @@ async function importFromEmail(encodedUrl, encodedAlt, buttonElement) {
 function initGmailSection() {
     const connectBtn = document.getElementById('connect-gmail-btn');
     const disconnectBtn = document.getElementById('disconnect-gmail-btn');
-    const searchBtn = document.getElementById('search-orders-btn');
+    const scanBtn = document.getElementById('scan-emails-btn');
+    const refreshBtn = document.getElementById('refresh-staged-btn');
+    const rejectBtn = document.getElementById('reject-selected-btn');
 
     if (connectBtn) {
         connectBtn.addEventListener('click', connectGmail);
@@ -639,8 +733,14 @@ function initGmailSection() {
     if (disconnectBtn) {
         disconnectBtn.addEventListener('click', disconnectGmail);
     }
-    if (searchBtn) {
-        searchBtn.addEventListener('click', searchOrders);
+    if (scanBtn) {
+        scanBtn.addEventListener('click', scanEmails);
+    }
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', loadStagedImages);
+    }
+    if (rejectBtn) {
+        rejectBtn.addEventListener('click', rejectSelectedImages);
     }
 
     // Check for OAuth callback params
@@ -655,4 +755,5 @@ function initGmailSection() {
     }
 
     checkGmailStatus();
+    loadStagedImages();
 }

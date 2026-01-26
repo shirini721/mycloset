@@ -49,3 +49,29 @@ class ProcessedEmail(Base):
     retailer = Column(String)
     has_clothing_images = Column(Boolean, default=False)  # Whether clothing images were found
     processed_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class StagedImage(Base):
+    """Images extracted from emails, pending user review."""
+    __tablename__ = "staged_images"
+
+    id = Column(Integer, primary_key=True, index=True)
+    image_url = Column(String, nullable=False)
+    alt_text = Column(String)
+    email_subject = Column(String)
+    email_date = Column(String)
+    retailer = Column(String)
+    message_id = Column(String, index=True)  # Gmail message ID for reference
+    status = Column(String, default="pending")  # pending, approved, rejected
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "image_url": self.image_url,
+            "alt_text": self.alt_text,
+            "email_subject": self.email_subject,
+            "email_date": self.email_date,
+            "retailer": self.retailer,
+            "status": self.status,
+        }
