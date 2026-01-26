@@ -164,19 +164,34 @@
                                     Include previously searched emails
                                 </label>
                             </div>
-                            <button id="search-orders-btn" class="btn btn-primary">Search for Orders</button>
+                            <button id="scan-emails-btn" class="btn btn-primary">Scan Emails</button>
                         </div>
 
-                        <!-- Orders Results -->
-                        <div id="orders-loading" class="loading hidden">
+                        <!-- Scan Progress -->
+                        <div id="scan-loading" class="loading hidden">
                             <div class="spinner"></div>
-                            <p>Searching your emails for clothing orders...</p>
+                            <p>Scanning your emails... This may take a few minutes for large date ranges.</p>
                         </div>
 
-                        <div id="orders-results" class="orders-results hidden">
-                            <h3>Found Orders</h3>
-                            <p class="results-summary" id="results-summary"></p>
-                            <div id="orders-list" class="orders-list"></div>
+                        <div id="scan-results" class="scan-results hidden">
+                            <p class="results-summary" id="scan-summary"></p>
+                        </div>
+
+                        <!-- Staged Images for Review -->
+                        <div id="staged-section" class="staged-section">
+                            <div class="staged-header">
+                                <h3>Images to Review</h3>
+                                <div class="staged-actions">
+                                    <button id="refresh-staged-btn" class="btn btn-small">Refresh</button>
+                                    <button id="reject-selected-btn" class="btn btn-small btn-danger" disabled>Reject Selected</button>
+                                </div>
+                            </div>
+                            <p class="staged-help">Click images to select, then click "Add to Closet" to import.</p>
+                            <div id="staged-images" class="staged-images-grid"></div>
+                            <div id="staged-empty" class="empty-state hidden">
+                                <p>No images pending review.</p>
+                                <p>Scan your emails to find clothing orders.</p>
+                            </div>
                         </div>
                     </div>
 

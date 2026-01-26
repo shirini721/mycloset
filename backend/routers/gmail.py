@@ -1,12 +1,13 @@
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request, BackgroundTasks
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 import os
 import uuid
 
 from database import get_db
+from models import StagedImage
 from services import gmail as gmail_service
 from services.image_analyzer import analyze_clothing_image
 from services.clothing import create_clothing_item
@@ -175,3 +176,151 @@ async def import_from_email(
         "message": "Item imported successfully",
         "item": item.to_dict()
     }
+
+
+@router.post("/scan")
+async def scan_emails(
+    days: int = 90,
+    include_seen: bool = False,
+    db: Session = Depends(get_db)
+):
+    """
+    Scan Gmail for order emails and stage images for review.
+    No AI filtering - just extracts and stores images.
+    """
+    if not gmail_service.is_authenticated():
+        raise HTTPException(
+            status_code=401,
+            detail="Gmail not connected. Please authenticate first."
+        )
+
+    # Cap at 5 years
+    days = min(days, 1825)
+
+    try:
+        result = await gmail_service.scan_and_stage_images(
+            days_back=days,
+            db=db,
+            include_seen=include_seen
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/staged")
+async def get_staged_images(
+    status: str = "pending",
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db)
+):
+    """Get staged images for review."""
+    query = db.query(StagedImage)
+
+    if status != "all":
+        query = query.filter(StagedImage.status == status)
+
+    total = query.count()
+    images = query.order_by(StagedImage.created_at.desc()).offset(offset).limit(limit).all()
+
+    return {
+        "images": [img.to_dict() for img in images],
+        "total": total,
+        "limit": limit,
+        "offset": offset
+    }
+
+
+class StagedImageAction(BaseModel):
+    image_ids: List[int]
+    action: str  # "approve" or "reject"
+
+
+@router.post("/staged/action")
+async def update_staged_images(
+    request: StagedImageAction,
+    db: Session = Depends(get_db)
+):
+    """Approve or reject staged images."""
+    if request.action not in ["approve", "reject"]:
+        raise HTTPException(status_code=400, detail="Action must be 'approve' or 'reject'")
+
+    updated = 0
+    for image_id in request.image_ids:
+        image = db.query(StagedImage).filter(StagedImage.id == image_id).first()
+        if image:
+            image.status = "approved" if request.action == "approve" else "rejected"
+            updated += 1
+
+    db.commit()
+    return {"updated": updated, "action": request.action}
+
+
+@router.post("/staged/{image_id}/import")
+async def import_staged_image(
+    image_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Import a staged image to the wardrobe.
+    Downloads, analyzes with AI, and adds to wardrobe.
+    """
+    image = db.query(StagedImage).filter(StagedImage.id == image_id).first()
+    if not image:
+        raise HTTPException(status_code=404, detail="Staged image not found")
+
+    # Generate unique filename
+    unique_filename = f"{uuid.uuid4()}.jpg"
+    file_path = os.path.join(UPLOAD_DIR, unique_filename)
+
+    # Download the image
+    success = await gmail_service.download_image(image.image_url, file_path)
+    if not success:
+        raise HTTPException(
+            status_code=400,
+            detail="Failed to download image"
+        )
+
+    # Analyze the image
+    try:
+        analysis = await analyze_clothing_image(file_path)
+    except Exception as e:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to analyze image: {str(e)}"
+        )
+
+    # Create the clothing item
+    item = create_clothing_item(
+        db, analysis, image_path=f"/uploads/{unique_filename}"
+    )
+
+    # Add to vector store
+    add_to_vector_store(item)
+
+    # Mark staged image as approved
+    image.status = "approved"
+    db.commit()
+
+    return {
+        "message": "Item imported successfully",
+        "item": item.to_dict()
+    }
+
+
+@router.delete("/staged/clear")
+async def clear_staged_images(
+    status: str = "rejected",
+    db: Session = Depends(get_db)
+):
+    """Clear staged images by status (default: rejected)."""
+    if status == "all":
+        deleted = db.query(StagedImage).delete()
+    else:
+        deleted = db.query(StagedImage).filter(StagedImage.status == status).delete()
+
+    db.commit()
+    return {"deleted": deleted}

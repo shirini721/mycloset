@@ -785,6 +785,127 @@ body {
     background: var(--text-secondary);
 }
 
+/* Staged Images Section */
+.staged-section {
+    margin-top: 24px;
+}
+
+.staged-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.staged-header h3 {
+    margin: 0;
+}
+
+.staged-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.staged-help {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+}
+
+.staged-images-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+}
+
+.staged-image-card {
+    position: relative;
+    background: var(--background);
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    border: 3px solid transparent;
+    transition: border-color 0.2s, transform 0.2s;
+}
+
+.staged-image-card:hover {
+    transform: translateY(-2px);
+}
+
+.staged-image-card.selected {
+    border-color: var(--primary-color);
+}
+
+.staged-image-card img {
+    width: 100%;
+    height: 140px;
+    object-fit: cover;
+}
+
+.staged-image-info {
+    padding: 8px;
+    font-size: 0.75rem;
+}
+
+.staged-image-info .retailer {
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+.staged-image-info .date {
+    color: var(--text-secondary);
+}
+
+.staged-image-card .add-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 6px 10px;
+    font-size: 0.7rem;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.staged-image-card:hover .add-btn {
+    opacity: 1;
+}
+
+.staged-image-card .add-btn:disabled {
+    background: var(--text-secondary);
+}
+
+.staged-image-card .add-btn.added {
+    background: var(--success-color);
+    opacity: 1;
+}
+
+.btn-danger {
+    background: #e74c3c;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #c0392b;
+}
+
+.btn-danger:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.scan-results {
+    margin-bottom: 20px;
+    padding: 12px 16px;
+    background: #e8f5e9;
+    border-radius: 8px;
+    border-left: 4px solid var(--success-color);
+}
+
 /* Utilities */
 .hidden {
     display: none !important;
