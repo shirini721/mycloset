@@ -40,14 +40,15 @@ CLOTHING_RETAILERS = [
     "zara", "h&m", "hm.com", "uniqlo", "gap", "oldnavy", "banana republic",
     "nordstrom", "asos", "shein", "fashion nova", "revolve", "shopbop",
     "net-a-porter", "ssense", "farfetch", "mango", "pull&bear", "bershka",
-    "massimo dutti", "cos", "arket", "& other stories", "everlane", "reformation",
+    "massimo dutti", "cos", "service.cos.com", "arket", "& other stories", "everlane", "reformation",
     "free people", "anthropologie", "urban outfitters", "lululemon", "nike",
     "adidas", "puma", "new balance", "reebok", "under armour", "patagonia",
     "the north face", "columbia", "j.crew", "madewell", "express", "forever 21",
     "american eagle", "abercrombie", "hollister", "topshop", "boohoo", "missguided",
     "pretty little thing", "princess polly", "showpo", "beginning boutique",
     "amazon", "target", "walmart", "kohls", "macys", "bloomingdales", "saks",
-    "neiman marcus", "bergdorf", "barneys", "selfridges", "harrods", "zalando"
+    "neiman marcus", "bergdorf", "barneys", "selfridges", "harrods", "zalando",
+    "fwrd", "mt.fwrd.com", "forward", "saksfifthavenue", "saks fifth avenue"
 ]
 
 
@@ -157,9 +158,9 @@ async def search_clothing_orders(days_back: int = 90) -> list[dict]:
     # Build search query for order confirmations
     after_date = (datetime.now() - timedelta(days=days_back)).strftime('%Y/%m/%d')
 
-    # Broader search - look for any order/receipt emails with images
-    # Don't restrict to specific retailers
-    query = f"(subject:order OR subject:confirmation OR subject:shipped OR subject:receipt OR subject:purchase OR subject:\"your order\" OR subject:\"order confirmed\") after:{after_date} has:attachment OR has:image"
+    # Simple search for order-related emails - no attachment/image filter
+    # since product images are embedded in HTML, not attachments
+    query = f"after:{after_date} (subject:order OR subject:shipped OR subject:confirmation OR subject:receipt OR subject:\"thank you for shopping\" OR subject:\"thank you for your order\" OR subject:\"order details\")"
 
     print(f"[Gmail] Searching with query: {query}")
 
