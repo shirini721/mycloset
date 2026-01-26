@@ -140,17 +140,17 @@ async def search_clothing_orders(days_back: int = 90) -> list[dict]:
     # Build search query for order confirmations
     after_date = (datetime.now() - timedelta(days=days_back)).strftime('%Y/%m/%d')
 
-    # Search for order-related emails from clothing retailers
-    retailer_query = " OR ".join([f"from:{r}" for r in CLOTHING_RETAILERS[:20]])  # Limit to avoid too long query
-    query = f"(subject:order OR subject:confirmation OR subject:shipped OR subject:delivery) after:{after_date} ({retailer_query})"
+    # Broader search - look for any order/receipt emails with images
+    # Don't restrict to specific retailers
+    query = f"(subject:order OR subject:confirmation OR subject:shipped OR subject:receipt OR subject:purchase OR subject:\"your order\" OR subject:\"order confirmed\") after:{after_date} has:attachment OR has:image"
 
-    print(f"[Gmail] Searching with query: {query[:100]}...")
+    print(f"[Gmail] Searching with query: {query}")
 
     try:
         results = service.users().messages().list(
             userId='me',
             q=query,
-            maxResults=50
+            maxResults=100
         ).execute()
 
         messages = results.get('messages', [])
