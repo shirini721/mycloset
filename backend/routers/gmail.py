@@ -86,10 +86,17 @@ async def disconnect_gmail():
 
 
 @router.get("/orders")
-async def get_clothing_orders(days: int = 90):
+async def get_clothing_orders(
+    days: int = 90,
+    include_seen: bool = False,
+    db: Session = Depends(get_db)
+):
     """
     Search Gmail for clothing order confirmations.
     Returns list of orders with product images.
+
+    - days: Number of days to search back (max 1825 = 5 years)
+    - include_seen: If True, include previously processed emails
     """
     if not gmail_service.is_authenticated():
         raise HTTPException(
@@ -97,8 +104,15 @@ async def get_clothing_orders(days: int = 90):
             detail="Gmail not connected. Please authenticate first."
         )
 
+    # Cap at 5 years
+    days = min(days, 1825)
+
     try:
-        orders = await gmail_service.search_clothing_orders(days_back=days)
+        orders = await gmail_service.search_clothing_orders(
+            days_back=days,
+            db=db,
+            include_seen=include_seen
+        )
         return {"orders": orders, "count": len(orders)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

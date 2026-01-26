@@ -14,6 +14,7 @@ from bs4 import BeautifulSoup
 import httpx
 import anthropic
 from dotenv import load_dotenv
+from sqlalchemy.orm import Session
 
 # Load environment variables
 load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / ".env")
@@ -144,11 +145,20 @@ def logout():
         TOKEN_FILE.unlink()
 
 
-async def search_clothing_orders(days_back: int = 90) -> list[dict]:
+async def search_clothing_orders(
+    days_back: int = 90,
+    db: Session = None,
+    include_seen: bool = False
+) -> list[dict]:
     """
     Search Gmail for clothing order confirmations.
     Returns list of potential clothing orders with extracted info.
+
+    - db: Database session for tracking processed emails
+    - include_seen: If True, include previously processed emails
     """
+    from models import ProcessedEmail
+
     credentials = get_credentials()
     if not credentials:
         raise ValueError("Not authenticated with Gmail")
@@ -164,6 +174,13 @@ async def search_clothing_orders(days_back: int = 90) -> list[dict]:
 
     print(f"[Gmail] Searching with query: {query}")
 
+    # Get list of already processed email IDs
+    seen_message_ids = set()
+    if db and not include_seen:
+        seen_emails = db.query(ProcessedEmail.message_id).all()
+        seen_message_ids = {e.message_id for e in seen_emails}
+        print(f"[Gmail] Excluding {len(seen_message_ids)} previously seen emails")
+
     try:
         results = service.users().messages().list(
             userId='me',
@@ -174,9 +191,32 @@ async def search_clothing_orders(days_back: int = 90) -> list[dict]:
         messages = results.get('messages', [])
         print(f"[Gmail] Found {len(messages)} potential order emails")
 
+        # Filter out already seen emails
+        if seen_message_ids:
+            messages = [m for m in messages if m['id'] not in seen_message_ids]
+            print(f"[Gmail] {len(messages)} emails after filtering seen ones")
+
         orders = []
         for msg in messages:
-            order = await extract_order_info(service, msg['id'])
+            message_id = msg['id']
+            order = await extract_order_info(service, message_id)
+
+            # Mark email as processed in database
+            if db:
+                has_clothing = order is not None and bool(order.get('images'))
+                processed_email = ProcessedEmail(
+                    message_id=message_id,
+                    subject=order.get('subject', '') if order else '',
+                    retailer=order.get('retailer', '') if order else '',
+                    has_clothing_images=has_clothing
+                )
+                try:
+                    db.add(processed_email)
+                    db.commit()
+                except Exception as e:
+                    db.rollback()
+                    print(f"[Gmail] Error saving processed email: {e}")
+
             if order and order.get('images'):
                 orders.append(order)
 
