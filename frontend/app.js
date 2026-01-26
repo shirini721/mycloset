@@ -46,6 +46,7 @@ function init() {
     initUploadArea();
     initForms();
     initModal();
+    initGmailSection();
     loadWardrobe();
 
     console.log('[MyCloset] Initialization complete');
@@ -459,3 +460,186 @@ async function deleteItem(itemId) {
 // Make functions globally available
 window.showItemDetails = showItemDetails;
 window.deleteItem = deleteItem;
+window.importFromEmail = importFromEmail;
+
+// ============ Gmail Import Functions ============
+
+async function checkGmailStatus() {
+    const statusDiv = document.getElementById('gmail-status');
+    const connectDiv = document.getElementById('gmail-connect');
+    const connectedDiv = document.getElementById('gmail-connected');
+    const setupDiv = document.getElementById('gmail-setup-required');
+
+    try {
+        const response = await fetch(`${API_BASE}/api/gmail/status`);
+        const data = await response.json();
+
+        statusDiv.querySelector('.gmail-loading').classList.add('hidden');
+
+        if (!data.credentials_configured) {
+            // Show setup instructions
+            setupDiv.classList.remove('hidden');
+            connectDiv.classList.add('hidden');
+            connectedDiv.classList.add('hidden');
+        } else if (data.connected) {
+            // Show connected state
+            connectedDiv.classList.remove('hidden');
+            connectDiv.classList.add('hidden');
+            setupDiv.classList.add('hidden');
+        } else {
+            // Show connect button
+            connectDiv.classList.remove('hidden');
+            connectedDiv.classList.add('hidden');
+            setupDiv.classList.add('hidden');
+        }
+    } catch (error) {
+        console.error('Error checking Gmail status:', error);
+        statusDiv.innerHTML = '<p class="error">Error checking Gmail status</p>';
+    }
+}
+
+async function connectGmail() {
+    try {
+        const response = await fetch(`${API_BASE}/api/gmail/auth`);
+        const data = await response.json();
+
+        if (data.auth_url) {
+            // Redirect to Google OAuth
+            window.location.href = data.auth_url;
+        } else {
+            alert('Failed to get authorization URL');
+        }
+    } catch (error) {
+        console.error('Error connecting Gmail:', error);
+        alert('Error connecting to Gmail');
+    }
+}
+
+async function disconnectGmail() {
+    if (!confirm('Are you sure you want to disconnect Gmail?')) return;
+
+    try {
+        await fetch(`${API_BASE}/api/gmail/disconnect`, { method: 'POST' });
+        checkGmailStatus();
+    } catch (error) {
+        console.error('Error disconnecting Gmail:', error);
+    }
+}
+
+async function searchOrders() {
+    const daysBack = document.getElementById('days-back').value;
+    const loadingDiv = document.getElementById('orders-loading');
+    const resultsDiv = document.getElementById('orders-results');
+    const ordersList = document.getElementById('orders-list');
+    const summaryP = document.getElementById('results-summary');
+
+    loadingDiv.classList.remove('hidden');
+    resultsDiv.classList.add('hidden');
+
+    try {
+        const response = await fetch(`${API_BASE}/api/gmail/orders?days=${daysBack}`);
+        const data = await response.json();
+
+        loadingDiv.classList.add('hidden');
+        resultsDiv.classList.remove('hidden');
+
+        if (data.orders.length === 0) {
+            summaryP.textContent = 'No clothing orders found in your email.';
+            ordersList.innerHTML = '';
+            return;
+        }
+
+        summaryP.textContent = `Found ${data.count} order(s) with product images.`;
+
+        ordersList.innerHTML = data.orders.map(order => `
+            <div class="order-card">
+                <div class="order-header">
+                    <span class="order-retailer">${order.retailer}</span>
+                    <span class="order-date">${order.date}</span>
+                </div>
+                <div class="order-subject">${order.subject}</div>
+                <div class="order-images">
+                    ${order.images.slice(0, 5).map((img, idx) => `
+                        <div class="order-image-item">
+                            <img src="${img.url}" alt="${img.alt || 'Product'}" onerror="this.parentElement.style.display='none'">
+                            <button class="import-btn" onclick="importFromEmail('${encodeURIComponent(img.url)}', '${encodeURIComponent(img.alt || '')}', this)">
+                                Add to Closet
+                            </button>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `).join('');
+
+    } catch (error) {
+        console.error('Error searching orders:', error);
+        loadingDiv.classList.add('hidden');
+        alert(`Error: ${error.message}`);
+    }
+}
+
+async function importFromEmail(encodedUrl, encodedAlt, buttonElement) {
+    const url = decodeURIComponent(encodedUrl);
+    const alt = decodeURIComponent(encodedAlt);
+
+    buttonElement.disabled = true;
+    buttonElement.textContent = 'Importing...';
+    buttonElement.classList.add('importing');
+
+    try {
+        const response = await fetch(`${API_BASE}/api/gmail/import`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                image_url: url,
+                suggested_name: alt || null
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Import failed');
+        }
+
+        const data = await response.json();
+        buttonElement.textContent = 'Added!';
+        buttonElement.classList.remove('importing');
+
+    } catch (error) {
+        console.error('Error importing item:', error);
+        buttonElement.textContent = 'Failed';
+        buttonElement.disabled = false;
+        buttonElement.classList.remove('importing');
+        alert(`Import failed: ${error.message}`);
+    }
+}
+
+// Initialize Gmail section when switching to import tab
+function initGmailSection() {
+    const connectBtn = document.getElementById('connect-gmail-btn');
+    const disconnectBtn = document.getElementById('disconnect-gmail-btn');
+    const searchBtn = document.getElementById('search-orders-btn');
+
+    if (connectBtn) {
+        connectBtn.addEventListener('click', connectGmail);
+    }
+    if (disconnectBtn) {
+        disconnectBtn.addEventListener('click', disconnectGmail);
+    }
+    if (searchBtn) {
+        searchBtn.addEventListener('click', searchOrders);
+    }
+
+    // Check for OAuth callback params
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('gmail_connected')) {
+        // Successfully connected - switch to import tab
+        switchTab('import');
+        window.history.replaceState({}, '', '/');
+    } else if (urlParams.has('gmail_error')) {
+        alert(`Gmail connection failed: ${urlParams.get('gmail_error')}`);
+        window.history.replaceState({}, '', '/');
+    }
+
+    checkGmailStatus();
+}

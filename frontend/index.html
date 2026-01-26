@@ -19,6 +19,7 @@
             <button class="tab active" data-tab="wardrobe">My Wardrobe</button>
             <button class="tab" data-tab="recommend">Get Outfit</button>
             <button class="tab" data-tab="add">Add Clothes</button>
+            <button class="tab" data-tab="import">Import from Email</button>
         </nav>
 
         <!-- Main Content -->
@@ -114,6 +115,78 @@
                         <button type="submit" class="btn btn-primary" id="upload-btn" disabled>Upload & Analyze</button>
                     </form>
                     <div id="upload-status" class="upload-status hidden"></div>
+                </div>
+            </section>
+
+            <!-- Import from Email Tab -->
+            <section id="import" class="tab-content">
+                <div class="import-section">
+                    <h2>Import from Email</h2>
+                    <p class="form-description">Connect your Gmail to automatically find clothing orders and import them to your wardrobe.</p>
+
+                    <!-- Gmail Connection Status -->
+                    <div id="gmail-status" class="gmail-status">
+                        <div class="gmail-loading">Checking connection...</div>
+                    </div>
+
+                    <!-- Gmail Not Connected -->
+                    <div id="gmail-connect" class="gmail-connect hidden">
+                        <div class="connect-box">
+                            <h3>Connect Your Gmail</h3>
+                            <p>We'll search for order confirmation emails from popular clothing retailers and extract product images.</p>
+                            <button id="connect-gmail-btn" class="btn btn-primary">Connect Gmail</button>
+                            <p class="privacy-note">We only read emails to find clothing orders. Your data stays private.</p>
+                        </div>
+                    </div>
+
+                    <!-- Gmail Connected -->
+                    <div id="gmail-connected" class="gmail-connected hidden">
+                        <div class="connected-header">
+                            <span class="status-badge connected">Gmail Connected</span>
+                            <button id="disconnect-gmail-btn" class="btn btn-small">Disconnect</button>
+                        </div>
+
+                        <div class="search-controls">
+                            <div class="form-group">
+                                <label for="days-back">Search orders from last</label>
+                                <select id="days-back">
+                                    <option value="30">30 days</option>
+                                    <option value="90" selected>90 days</option>
+                                    <option value="180">6 months</option>
+                                    <option value="365">1 year</option>
+                                </select>
+                            </div>
+                            <button id="search-orders-btn" class="btn btn-primary">Search for Orders</button>
+                        </div>
+
+                        <!-- Orders Results -->
+                        <div id="orders-loading" class="loading hidden">
+                            <div class="spinner"></div>
+                            <p>Searching your emails for clothing orders...</p>
+                        </div>
+
+                        <div id="orders-results" class="orders-results hidden">
+                            <h3>Found Orders</h3>
+                            <p class="results-summary" id="results-summary"></p>
+                            <div id="orders-list" class="orders-list"></div>
+                        </div>
+                    </div>
+
+                    <!-- Setup Required -->
+                    <div id="gmail-setup-required" class="setup-required hidden">
+                        <div class="setup-box">
+                            <h3>Setup Required</h3>
+                            <p>To use Gmail import, you need to configure Google OAuth credentials:</p>
+                            <ol>
+                                <li>Go to <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a></li>
+                                <li>Create a new project (or select existing)</li>
+                                <li>Enable the Gmail API</li>
+                                <li>Create OAuth 2.0 credentials (Web application)</li>
+                                <li>Add <code>http://localhost:8000/api/gmail/callback</code> as an authorized redirect URI</li>
+                                <li>Download the credentials JSON and save as <code>credentials.json</code> in the project root</li>
+                            </ol>
+                        </div>
+                    </div>
                 </div>
             </section>
         </main>
