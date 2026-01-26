@@ -180,13 +180,14 @@
                         <!-- Staged Images for Review -->
                         <div id="staged-section" class="staged-section">
                             <div class="staged-header">
-                                <h3>Images to Review</h3>
+                                <h3>Images to Review (<span id="staged-count">0</span>)</h3>
                                 <div class="staged-actions">
+                                    <button id="select-all-btn" class="btn btn-small">Select All</button>
                                     <button id="refresh-staged-btn" class="btn btn-small">Refresh</button>
                                     <button id="reject-selected-btn" class="btn btn-small btn-danger" disabled>Reject Selected</button>
                                 </div>
                             </div>
-                            <p class="staged-help">Click images to select, then click "Add to Closet" to import.</p>
+                            <p class="staged-help">Click images to select, or use "Select All" to select all visible images.</p>
                             <div id="staged-images" class="staged-images-grid"></div>
                             <div id="staged-empty" class="empty-state hidden">
                                 <p>No images pending review.</p>
