@@ -356,47 +356,44 @@ def extract_product_images(html_content: str, from_email: str) -> list[dict]:
         if not src or src in seen_urls:
             continue
 
-        # Skip common non-product images
+        # Only skip obvious non-product images (tracking pixels, social icons)
         skip_patterns = [
-            'logo', 'icon', 'banner', 'header', 'footer', 'social',
-            'facebook', 'twitter', 'instagram', 'pinterest', 'youtube',
             'spacer', 'pixel', 'tracking', '1x1', 'transparent',
-            'email-open', 'unsubscribe', 'preference'
+            'email-open', 'unsubscribe', 'beacon'
         ]
 
         src_lower = src.lower()
-        alt_lower = alt.lower()
 
-        if any(pattern in src_lower or pattern in alt_lower for pattern in skip_patterns):
+        if any(pattern in src_lower for pattern in skip_patterns):
+            print(f"[Gmail] Skipping (pattern match): {src[:50]}...")
             continue
 
-        # Look for product-like images (larger dimensions, product keywords)
+        # Skip tiny explicitly-sized images (likely icons)
         width = img.get('width', '')
         height = img.get('height', '')
 
-        # Try to get numeric dimensions
         try:
             w = int(re.sub(r'[^0-9]', '', str(width))) if width else 0
             h = int(re.sub(r'[^0-9]', '', str(height))) if height else 0
         except:
             w, h = 0, 0
 
-        # Prefer images with reasonable dimensions or product-related alt text
-        is_product_size = (w >= 100 and h >= 100) or (w == 0 and h == 0)  # Unknown size might be product
-        has_product_alt = alt and len(alt) > 5 and not any(skip in alt_lower for skip in skip_patterns)
+        # Skip only if explicitly tiny (like 1x1 or 20x20)
+        if w > 0 and h > 0 and w < 50 and h < 50:
+            print(f"[Gmail] Skipping tiny image ({w}x{h}): {src[:50]}...")
+            continue
 
-        if is_product_size or has_product_alt:
-            seen_urls.add(src)
-            images.append({
-                'url': src,
-                'alt': alt,
-                'width': w,
-                'height': h
-            })
+        seen_urls.add(src)
+        images.append({
+            'url': src,
+            'alt': alt,
+            'width': w,
+            'height': h
+        })
 
-    # Sort by size (larger first) and limit
+    # Sort by size (larger first) and return more images
     images.sort(key=lambda x: (x['width'] * x['height']), reverse=True)
-    return images[:10]  # Return top 10 images
+    return images[:20]  # Return top 20 images per email
 
 
 def identify_retailer(from_email: str, subject: str) -> str:

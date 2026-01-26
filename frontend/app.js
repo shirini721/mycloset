@@ -568,10 +568,13 @@ async function scanEmails() {
 async function loadStagedImages() {
     const container = document.getElementById('staged-images');
     const emptyState = document.getElementById('staged-empty');
+    const countSpan = document.getElementById('staged-count');
 
     try {
-        const response = await fetch(`${API_BASE}/api/gmail/staged?status=pending&limit=100`);
+        const response = await fetch(`${API_BASE}/api/gmail/staged?status=pending&limit=200`);
         const data = await response.json();
+
+        countSpan.textContent = data.total;
 
         if (data.images.length === 0) {
             container.innerHTML = '';
@@ -599,6 +602,27 @@ async function loadStagedImages() {
     } catch (error) {
         console.error('Error loading staged images:', error);
     }
+}
+
+function selectAllStagedImages() {
+    const cards = document.querySelectorAll('.staged-image-card');
+    const allSelected = selectedStagedImages.size === cards.length;
+
+    if (allSelected) {
+        // Deselect all
+        selectedStagedImages.clear();
+        cards.forEach(card => card.classList.remove('selected'));
+        document.getElementById('select-all-btn').textContent = 'Select All';
+    } else {
+        // Select all
+        cards.forEach(card => {
+            const id = parseInt(card.dataset.id);
+            selectedStagedImages.add(id);
+            card.classList.add('selected');
+        });
+        document.getElementById('select-all-btn').textContent = 'Deselect All';
+    }
+    updateRejectButton();
 }
 
 function toggleStagedImage(id, element) {
@@ -726,6 +750,7 @@ function initGmailSection() {
     const scanBtn = document.getElementById('scan-emails-btn');
     const refreshBtn = document.getElementById('refresh-staged-btn');
     const rejectBtn = document.getElementById('reject-selected-btn');
+    const selectAllBtn = document.getElementById('select-all-btn');
 
     if (connectBtn) {
         connectBtn.addEventListener('click', connectGmail);
@@ -741,6 +766,9 @@ function initGmailSection() {
     }
     if (rejectBtn) {
         rejectBtn.addEventListener('click', rejectSelectedImages);
+    }
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener('click', selectAllStagedImages);
     }
 
     // Check for OAuth callback params
