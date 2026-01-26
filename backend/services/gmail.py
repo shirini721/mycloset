@@ -585,14 +585,34 @@ async def scan_and_stage_images(
         print(f"[Gmail] Excluding {len(seen_message_ids)} previously seen emails")
 
     try:
-        results = service.users().messages().list(
-            userId='me',
-            q=query,
-            maxResults=200  # Get more emails
-        ).execute()
+        # Paginate through ALL matching emails (Gmail returns newest first)
+        messages = []
+        page_token = None
 
-        messages = results.get('messages', [])
-        print(f"[Gmail] Found {len(messages)} potential order emails")
+        while True:
+            if page_token:
+                results = service.users().messages().list(
+                    userId='me',
+                    q=query,
+                    maxResults=500,
+                    pageToken=page_token
+                ).execute()
+            else:
+                results = service.users().messages().list(
+                    userId='me',
+                    q=query,
+                    maxResults=500
+                ).execute()
+
+            messages.extend(results.get('messages', []))
+            page_token = results.get('nextPageToken')
+
+            print(f"[Gmail] Fetched {len(messages)} emails so far...")
+
+            if not page_token:
+                break
+
+        print(f"[Gmail] Found {len(messages)} total order emails")
 
         # Filter out already seen emails
         if seen_message_ids:
