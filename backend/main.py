@@ -5,6 +5,8 @@ from contextlib import asynccontextmanager
 import os
 
 from database import engine, Base
+# Import all models so they're registered with Base before create_all
+import models  # noqa: F401
 from routers import clothes, recommendations, gmail
 
 
