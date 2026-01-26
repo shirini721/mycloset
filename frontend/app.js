@@ -555,7 +555,8 @@ async function scanEmails() {
         resultsDiv.classList.remove('hidden');
         summaryP.textContent = `Scan complete! Processed ${data.emails_processed} emails, found ${data.images_staged} new images.`;
 
-        // Refresh staged images
+        // Refresh retailer stats and staged images
+        loadRetailerStats();
         loadStagedImages();
 
     } catch (error) {
@@ -565,13 +566,96 @@ async function scanEmails() {
     }
 }
 
+// Current retailer filter
+let currentRetailerFilter = '';
+
+async function loadRetailerStats() {
+    const container = document.getElementById('retailer-list');
+    const filterSelect = document.getElementById('retailer-filter');
+
+    try {
+        const response = await fetch(`${API_BASE}/api/gmail/staged/retailers?status=pending`);
+        const data = await response.json();
+
+        if (data.retailers.length === 0) {
+            container.innerHTML = '<p class="empty-state">No retailers found</p>';
+            return;
+        }
+
+        // Build retailer chips
+        container.innerHTML = data.retailers.map(r => `
+            <div class="retailer-chip ${currentRetailerFilter === r.name ? 'selected' : ''}"
+                 onclick="filterByRetailer('${r.name.replace(/'/g, "\\'")}')">
+                <span class="name">${r.name}</span>
+                <span class="count">${r.count}</span>
+                <button class="reject-btn" onclick="event.stopPropagation(); rejectRetailer('${r.name.replace(/'/g, "\\'")}')">
+                    Reject All
+                </button>
+            </div>
+        `).join('');
+
+        // Update filter dropdown
+        filterSelect.innerHTML = '<option value="">All Retailers (' + data.total + ')</option>' +
+            data.retailers.map(r => `<option value="${r.name}" ${currentRetailerFilter === r.name ? 'selected' : ''}>${r.name} (${r.count})</option>`).join('');
+
+    } catch (error) {
+        console.error('Error loading retailer stats:', error);
+    }
+}
+
+async function rejectRetailer(retailer) {
+    if (!confirm(`Reject ALL pending images from "${retailer}"?`)) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/gmail/staged/reject-retailer?retailer=${encodeURIComponent(retailer)}`, {
+            method: 'POST'
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to reject retailer images');
+        }
+
+        const data = await response.json();
+        alert(`Rejected ${data.rejected} images from ${retailer}`);
+
+        // Refresh both retailer stats and images
+        loadRetailerStats();
+        loadStagedImages();
+    } catch (error) {
+        console.error('Error rejecting retailer:', error);
+        alert(`Error: ${error.message}`);
+    }
+}
+
+function filterByRetailer(retailer) {
+    if (currentRetailerFilter === retailer) {
+        currentRetailerFilter = '';  // Toggle off
+    } else {
+        currentRetailerFilter = retailer;
+    }
+    document.getElementById('retailer-filter').value = currentRetailerFilter;
+    loadRetailerStats();
+    loadStagedImages();
+}
+
+function onRetailerFilterChange() {
+    currentRetailerFilter = document.getElementById('retailer-filter').value;
+    loadRetailerStats();
+    loadStagedImages();
+}
+
 async function loadStagedImages() {
     const container = document.getElementById('staged-images');
     const emptyState = document.getElementById('staged-empty');
     const countSpan = document.getElementById('staged-count');
 
     try {
-        const response = await fetch(`${API_BASE}/api/gmail/staged?status=pending&limit=200`);
+        let url = `${API_BASE}/api/gmail/staged?status=pending&limit=200`;
+        if (currentRetailerFilter) {
+            url += `&retailer=${encodeURIComponent(currentRetailerFilter)}`;
+        }
+
+        const response = await fetch(url);
         const data = await response.json();
 
         countSpan.textContent = data.total;
@@ -807,6 +891,13 @@ function initGmailSection() {
         window.history.replaceState({}, '', '/');
     }
 
+    // Retailer filter dropdown
+    const retailerFilter = document.getElementById('retailer-filter');
+    if (retailerFilter) {
+        retailerFilter.addEventListener('change', onRetailerFilterChange);
+    }
+
     checkGmailStatus();
+    loadRetailerStats();
     loadStagedImages();
 }

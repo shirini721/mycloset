@@ -211,15 +211,19 @@ async def scan_emails(
 @router.get("/staged")
 async def get_staged_images(
     status: str = "pending",
+    retailer: str = None,
     limit: int = 50,
     offset: int = 0,
     db: Session = Depends(get_db)
 ):
-    """Get staged images for review."""
+    """Get staged images for review, optionally filtered by retailer."""
     query = db.query(StagedImage)
 
     if status != "all":
         query = query.filter(StagedImage.status == status)
+
+    if retailer:
+        query = query.filter(StagedImage.retailer == retailer)
 
     total = query.count()
     images = query.order_by(StagedImage.created_at.desc()).offset(offset).limit(limit).all()
@@ -230,6 +234,45 @@ async def get_staged_images(
         "limit": limit,
         "offset": offset
     }
+
+
+@router.get("/staged/retailers")
+async def get_retailer_stats(
+    status: str = "pending",
+    db: Session = Depends(get_db)
+):
+    """Get counts of staged images grouped by retailer."""
+    from sqlalchemy import func
+
+    query = db.query(
+        StagedImage.retailer,
+        func.count(StagedImage.id).label('count')
+    )
+
+    if status != "all":
+        query = query.filter(StagedImage.status == status)
+
+    results = query.group_by(StagedImage.retailer).order_by(func.count(StagedImage.id).desc()).all()
+
+    return {
+        "retailers": [{"name": r[0] or "Unknown", "count": r[1]} for r in results],
+        "total": sum(r[1] for r in results)
+    }
+
+
+@router.post("/staged/reject-retailer")
+async def reject_by_retailer(
+    retailer: str,
+    db: Session = Depends(get_db)
+):
+    """Reject all pending images from a specific retailer."""
+    updated = db.query(StagedImage).filter(
+        StagedImage.retailer == retailer,
+        StagedImage.status == "pending"
+    ).update({"status": "rejected"})
+
+    db.commit()
+    return {"rejected": updated, "retailer": retailer}
 
 
 class StagedImageAction(BaseModel):
