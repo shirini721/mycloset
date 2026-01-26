@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, JSON
+from sqlalchemy import Column, Integer, String, DateTime, JSON, Boolean
 from sqlalchemy.sql import func
 from database import Base
 
@@ -37,3 +37,15 @@ class ClothingItem(Base):
             "image_path": self.image_path,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class ProcessedEmail(Base):
+    """Track emails that have been processed to avoid duplicates."""
+    __tablename__ = "processed_emails"
+
+    id = Column(Integer, primary_key=True, index=True)
+    message_id = Column(String, unique=True, nullable=False, index=True)  # Gmail message ID
+    subject = Column(String)
+    retailer = Column(String)
+    has_clothing_images = Column(Boolean, default=False)  # Whether clothing images were found
+    processed_at = Column(DateTime(timezone=True), server_default=func.now())

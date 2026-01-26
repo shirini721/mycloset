@@ -528,6 +528,7 @@ async function disconnectGmail() {
 
 async function searchOrders() {
     const daysBack = document.getElementById('days-back').value;
+    const includeSeen = document.getElementById('include-seen').checked;
     const loadingDiv = document.getElementById('orders-loading');
     const resultsDiv = document.getElementById('orders-results');
     const ordersList = document.getElementById('orders-list');
@@ -537,7 +538,7 @@ async function searchOrders() {
     resultsDiv.classList.add('hidden');
 
     try {
-        const response = await fetch(`${API_BASE}/api/gmail/orders?days=${daysBack}`);
+        const response = await fetch(`${API_BASE}/api/gmail/orders?days=${daysBack}&include_seen=${includeSeen}`);
         const data = await response.json();
 
         loadingDiv.classList.add('hidden');
