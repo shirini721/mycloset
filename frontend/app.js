@@ -544,13 +544,25 @@ async function searchOrders() {
         loadingDiv.classList.add('hidden');
         resultsDiv.classList.remove('hidden');
 
+        // Handle server errors
+        if (!response.ok && !data.rate_limited) {
+            summaryP.innerHTML = `<span class="error-message">Error: ${data.detail || 'Failed to search emails'}</span>`;
+            ordersList.innerHTML = '';
+            return;
+        }
+
         if (data.orders.length === 0) {
             summaryP.textContent = 'No clothing orders found in your email.';
             ordersList.innerHTML = '';
             return;
         }
 
-        summaryP.textContent = `Found ${data.count} order(s) with product images.`;
+        // Handle rate limit with partial results
+        if (data.rate_limited) {
+            summaryP.innerHTML = `<span class="rate-limit-warning">⚠️ Rate limit reached - showing ${data.count} order(s) found before limit. Try again later for more.</span>`;
+        } else {
+            summaryP.textContent = `Found ${data.count} order(s) with product images.`;
+        }
 
         ordersList.innerHTML = data.orders.map(order => `
             <div class="order-card">

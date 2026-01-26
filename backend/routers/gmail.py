@@ -114,6 +114,14 @@ async def get_clothing_orders(
             include_seen=include_seen
         )
         return {"orders": orders, "count": len(orders)}
+    except gmail_service.RateLimitError as e:
+        # Return partial results with a rate limit indicator
+        return {
+            "orders": e.partial_results,
+            "count": len(e.partial_results),
+            "rate_limited": True,
+            "error": str(e)
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

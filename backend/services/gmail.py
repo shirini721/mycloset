@@ -23,6 +23,13 @@ load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / ".env")
 _anthropic_client = None
 
 
+class RateLimitError(Exception):
+    """Raised when Claude API rate limit is hit."""
+    def __init__(self, message: str, partial_results: list = None):
+        super().__init__(message)
+        self.partial_results = partial_results or []
+
+
 def get_anthropic_client():
     global _anthropic_client
     if _anthropic_client is None:
@@ -197,9 +204,25 @@ async def search_clothing_orders(
             print(f"[Gmail] {len(messages)} emails after filtering seen ones")
 
         orders = []
+        rate_limited = False
+
         for msg in messages:
             message_id = msg['id']
-            order = await extract_order_info(service, message_id)
+
+            try:
+                order = await extract_order_info(service, message_id)
+            except RateLimitError as e:
+                print(f"[Gmail] Rate limit hit, returning partial results")
+                rate_limited = True
+                # Include any partial results from this email's images
+                if e.partial_results:
+                    orders.append({
+                        'message_id': message_id,
+                        'subject': 'Partially processed',
+                        'retailer': 'Unknown',
+                        'images': e.partial_results
+                    })
+                break
 
             # Mark email as processed in database
             if db:
@@ -221,15 +244,27 @@ async def search_clothing_orders(
                 orders.append(order)
 
         print(f"[Gmail] Extracted {len(orders)} orders with images")
+
+        if rate_limited:
+            raise RateLimitError(
+                "Claude API rate limit reached. Returning partial results. Please try again later for remaining emails.",
+                partial_results=orders
+            )
+
         return orders
 
+    except RateLimitError:
+        raise
     except Exception as e:
         print(f"[Gmail] Error searching emails: {e}")
         raise
 
 
 async def extract_order_info(service, message_id: str) -> Optional[dict]:
-    """Extract order information and product images from an email."""
+    """Extract order information and product images from an email.
+
+    Raises RateLimitError if Claude API limit is hit.
+    """
     try:
         message = service.users().messages().get(
             userId='me',
@@ -255,7 +290,8 @@ async def extract_order_info(service, message_id: str) -> Optional[dict]:
             images = extract_product_images(html_body, from_email)
 
         if not images:
-            return None
+            print(f"[Gmail] No images found in: {subject[:50]} - skipping AI analysis")
+            return {'message_id': message_id, 'subject': subject, 'retailer': identify_retailer(from_email, subject), 'images': []}
 
         # Use AI to filter only actual clothing images
         print(f"[Gmail] Filtering {len(images)} images from: {subject[:50]}...")
@@ -263,7 +299,7 @@ async def extract_order_info(service, message_id: str) -> Optional[dict]:
 
         if not clothing_images:
             print(f"[Gmail] No clothing images found in: {subject[:50]}")
-            return None
+            return {'message_id': message_id, 'subject': subject, 'retailer': identify_retailer(from_email, subject), 'images': []}
 
         # Identify retailer
         retailer = identify_retailer(from_email, subject)
@@ -277,6 +313,9 @@ async def extract_order_info(service, message_id: str) -> Optional[dict]:
             'images': clothing_images
         }
 
+    except RateLimitError:
+        # Re-raise rate limit errors to be handled by the caller
+        raise
     except Exception as e:
         print(f"[Gmail] Error extracting order {message_id}: {e}")
         return None
@@ -404,7 +443,19 @@ async def is_clothing_image(image_url: str) -> dict:
         async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as http_client:
             response = await http_client.get(image_url)
             response.raise_for_status()
+
+            # Skip tiny images (likely tracking pixels or icons)
+            content_length = response.headers.get('content-length')
+            if content_length and int(content_length) < 5000:  # Less than 5KB
+                print(f"[Gmail] Skipping tiny image ({content_length} bytes): {image_url[:50]}...")
+                return {"is_clothing": False, "name": "", "reason": "Image too small (likely icon/pixel)"}
+
             image_data = base64.standard_b64encode(response.content).decode("utf-8")
+
+            # Also check actual downloaded size
+            if len(response.content) < 5000:
+                print(f"[Gmail] Skipping tiny image ({len(response.content)} bytes): {image_url[:50]}...")
+                return {"is_clothing": False, "name": "", "reason": "Image too small (likely icon/pixel)"}
 
             # Determine media type from content-type header
             content_type = response.headers.get('content-type', 'image/jpeg')
@@ -467,6 +518,9 @@ Return true only for: actual photos of clothing items, shoes, accessories that s
             "reason": result.get("reason", "")
         }
 
+    except anthropic.RateLimitError as e:
+        print(f"[Gmail] Rate limit hit: {e}")
+        raise RateLimitError("Claude API rate limit reached. Please try again later.")
     except Exception as e:
         print(f"[Gmail] Error checking if clothing image: {e}")
         # On error, include the image (don't filter it out)
@@ -477,17 +531,25 @@ async def filter_clothing_images(images: list[dict]) -> list[dict]:
     """
     Filter a list of images to only include actual clothing products.
     Uses Claude Vision to analyze each image.
+    Raises RateLimitError with partial results if rate limited.
     """
     clothing_images = []
 
     for img in images[:8]:  # Limit to 8 images to avoid too many API calls
-        result = await is_clothing_image(img['url'])
+        try:
+            result = await is_clothing_image(img['url'])
 
-        if result.get('is_clothing'):
-            img['ai_name'] = result.get('name', '')
-            clothing_images.append(img)
-            print(f"[Gmail] ✓ Clothing: {result.get('name', 'Unknown')}")
-        else:
-            print(f"[Gmail] ✗ Not clothing: {result.get('reason', 'Unknown')}")
+            if result.get('is_clothing'):
+                img['ai_name'] = result.get('name', '')
+                clothing_images.append(img)
+                print(f"[Gmail] ✓ Clothing: {result.get('name', 'Unknown')}")
+            else:
+                print(f"[Gmail] ✗ Not clothing: {result.get('reason', 'Unknown')}")
+        except RateLimitError:
+            # Re-raise with partial results
+            raise RateLimitError(
+                "Claude API rate limit reached. Please try again later.",
+                partial_results=clothing_images
+            )
 
     return clothing_images

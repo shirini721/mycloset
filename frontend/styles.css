@@ -677,6 +677,24 @@ body {
     margin-bottom: 20px;
 }
 
+.rate-limit-warning {
+    color: #e67e22;
+    background: #fef3e7;
+    padding: 12px 16px;
+    border-radius: 8px;
+    display: block;
+    border-left: 4px solid #e67e22;
+}
+
+.error-message {
+    color: #e74c3c;
+    background: #fef0ef;
+    padding: 12px 16px;
+    border-radius: 8px;
+    display: block;
+    border-left: 4px solid #e74c3c;
+}
+
 .orders-list {
     display: flex;
     flex-direction: column;
