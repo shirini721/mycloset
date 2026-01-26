@@ -12,6 +12,23 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from bs4 import BeautifulSoup
 import httpx
+import anthropic
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / ".env")
+
+# Initialize Anthropic client lazily
+_anthropic_client = None
+
+
+def get_anthropic_client():
+    global _anthropic_client
+    if _anthropic_client is None:
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if api_key:
+            _anthropic_client = anthropic.Anthropic(api_key=api_key)
+    return _anthropic_client
 
 # OAuth2 configuration
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
@@ -191,12 +208,20 @@ async def extract_order_info(service, message_id: str) -> Optional[dict]:
 
         body = html_body or text_body or ''
 
-        # Extract product images from HTML
+        # Extract potential product images from HTML
         images = []
         if html_body:
             images = extract_product_images(html_body, from_email)
 
         if not images:
+            return None
+
+        # Use AI to filter only actual clothing images
+        print(f"[Gmail] Filtering {len(images)} images from: {subject[:50]}...")
+        clothing_images = await filter_clothing_images(images)
+
+        if not clothing_images:
+            print(f"[Gmail] No clothing images found in: {subject[:50]}")
             return None
 
         # Identify retailer
@@ -208,7 +233,7 @@ async def extract_order_info(service, message_id: str) -> Optional[dict]:
             'from': from_email,
             'date': date,
             'retailer': retailer,
-            'images': images
+            'images': clothing_images
         }
 
     except Exception as e:
@@ -321,3 +346,107 @@ async def download_image(url: str, save_path: str) -> bool:
     except Exception as e:
         print(f"[Gmail] Error downloading image {url}: {e}")
         return False
+
+
+async def is_clothing_image(image_url: str) -> dict:
+    """
+    Use Claude Vision to determine if an image URL shows a clothing product.
+    Returns dict with 'is_clothing' bool and 'description' if it is clothing.
+    """
+    client = get_anthropic_client()
+    if not client:
+        # If no API key, return True to not filter (fallback to old behavior)
+        return {"is_clothing": True, "description": "", "name": ""}
+
+    try:
+        # Fetch the image
+        async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as http_client:
+            response = await http_client.get(image_url)
+            response.raise_for_status()
+            image_data = base64.standard_b64encode(response.content).decode("utf-8")
+
+            # Determine media type from content-type header
+            content_type = response.headers.get('content-type', 'image/jpeg')
+            if 'png' in content_type:
+                media_type = 'image/png'
+            elif 'gif' in content_type:
+                media_type = 'image/gif'
+            elif 'webp' in content_type:
+                media_type = 'image/webp'
+            else:
+                media_type = 'image/jpeg'
+
+        # Ask Claude to analyze the image
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=256,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": image_data,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": """Is this image a clothing/fashion product photo (like a shirt, dress, pants, shoes, jacket, etc.)?
+
+Answer in JSON format:
+{
+    "is_clothing": true/false,
+    "name": "Brief name if clothing (e.g., 'Black Leather Jacket')",
+    "reason": "Brief reason"
+}
+
+Return false for: icons, logos, banners, buttons, social media icons, decorative images, shipping graphics, payment icons, etc.
+Return true only for: actual photos of clothing items, shoes, accessories that someone could wear."""
+                        },
+                    ],
+                }
+            ],
+        )
+
+        response_text = message.content[0].text
+
+        # Parse JSON from response
+        if "```json" in response_text:
+            response_text = response_text.split("```json")[1].split("```")[0]
+        elif "```" in response_text:
+            response_text = response_text.split("```")[1].split("```")[0]
+
+        result = json.loads(response_text.strip())
+        return {
+            "is_clothing": result.get("is_clothing", False),
+            "name": result.get("name", ""),
+            "reason": result.get("reason", "")
+        }
+
+    except Exception as e:
+        print(f"[Gmail] Error checking if clothing image: {e}")
+        # On error, include the image (don't filter it out)
+        return {"is_clothing": True, "name": "", "reason": ""}
+
+
+async def filter_clothing_images(images: list[dict]) -> list[dict]:
+    """
+    Filter a list of images to only include actual clothing products.
+    Uses Claude Vision to analyze each image.
+    """
+    clothing_images = []
+
+    for img in images[:8]:  # Limit to 8 images to avoid too many API calls
+        result = await is_clothing_image(img['url'])
+
+        if result.get('is_clothing'):
+            img['ai_name'] = result.get('name', '')
+            clothing_images.append(img)
+            print(f"[Gmail] ✓ Clothing: {result.get('name', 'Unknown')}")
+        else:
+            print(f"[Gmail] ✗ Not clothing: {result.get('reason', 'Unknown')}")
+
+    return clothing_images
