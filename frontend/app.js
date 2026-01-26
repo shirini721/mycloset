@@ -670,6 +670,27 @@ async function rejectSelectedImages() {
     }
 }
 
+async function clearAllStagedImages() {
+    if (!confirm('Clear ALL staged images and reset email history? This will allow a complete rescan of all your emails.')) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/gmail/staged/clear?status=all&clear_processed=true`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to clear images');
+        }
+
+        const data = await response.json();
+        alert(`Cleared ${data.deleted} images and ${data.processed_cleared} processed emails. You can now do a full rescan.`);
+        loadStagedImages();
+    } catch (error) {
+        console.error('Error clearing images:', error);
+        alert(`Error: ${error.message}`);
+    }
+}
+
 async function importStagedImage(imageId, buttonElement) {
     buttonElement.disabled = true;
     buttonElement.textContent = 'Adding...';
@@ -751,6 +772,7 @@ function initGmailSection() {
     const refreshBtn = document.getElementById('refresh-staged-btn');
     const rejectBtn = document.getElementById('reject-selected-btn');
     const selectAllBtn = document.getElementById('select-all-btn');
+    const clearAllBtn = document.getElementById('clear-all-btn');
 
     if (connectBtn) {
         connectBtn.addEventListener('click', connectGmail);
@@ -769,6 +791,9 @@ function initGmailSection() {
     }
     if (selectAllBtn) {
         selectAllBtn.addEventListener('click', selectAllStagedImages);
+    }
+    if (clearAllBtn) {
+        clearAllBtn.addEventListener('click', clearAllStagedImages);
     }
 
     // Check for OAuth callback params

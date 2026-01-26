@@ -898,6 +898,18 @@ body {
     cursor: not-allowed;
 }
 
+.btn-outline {
+    background: transparent;
+    border: 1px solid var(--text-secondary);
+    color: var(--text-secondary);
+}
+
+.btn-outline:hover {
+    background: var(--background);
+    border-color: var(--text-color);
+    color: var(--text-color);
+}
+
 .scan-results {
     margin-bottom: 20px;
     padding: 12px 16px;

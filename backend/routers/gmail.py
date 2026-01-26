@@ -105,8 +105,8 @@ async def get_clothing_orders(
             detail="Gmail not connected. Please authenticate first."
         )
 
-    # Cap at 5 years
-    days = min(days, 1825)
+    # Cap at 10 years
+    days = min(days, 3650)
 
     try:
         orders = await gmail_service.search_clothing_orders(
@@ -194,8 +194,8 @@ async def scan_emails(
             detail="Gmail not connected. Please authenticate first."
         )
 
-    # Cap at 5 years
-    days = min(days, 1825)
+    # Cap at 10 years
+    days = min(days, 3650)
 
     try:
         result = await gmail_service.scan_and_stage_images(
@@ -314,13 +314,23 @@ async def import_staged_image(
 @router.delete("/staged/clear")
 async def clear_staged_images(
     status: str = "rejected",
+    clear_processed: bool = False,
     db: Session = Depends(get_db)
 ):
-    """Clear staged images by status (default: rejected)."""
+    """Clear staged images by status (default: rejected).
+
+    If clear_processed=True, also clears processed_emails to allow full rescan.
+    """
+    from models import ProcessedEmail
+
     if status == "all":
         deleted = db.query(StagedImage).delete()
     else:
         deleted = db.query(StagedImage).filter(StagedImage.status == status).delete()
 
+    processed_deleted = 0
+    if clear_processed:
+        processed_deleted = db.query(ProcessedEmail).delete()
+
     db.commit()
-    return {"deleted": deleted}
+    return {"deleted": deleted, "processed_cleared": processed_deleted}
