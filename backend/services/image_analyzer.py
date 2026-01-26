@@ -3,8 +3,28 @@ import base64
 import json
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
-client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+# Load .env file from project root
+env_path = Path(__file__).parent.parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
+
+# Initialize client lazily
+_client = None
+
+
+def get_client():
+    global _client
+    if _client is None:
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise ValueError(
+                f"ANTHROPIC_API_KEY not found. Please set it in your .env file at {env_path}"
+            )
+        print(f"[ImageAnalyzer] Initializing Anthropic client...")
+        _client = anthropic.Anthropic(api_key=api_key)
+    return _client
+
 
 ANALYSIS_PROMPT = """Analyze this clothing item image and extract detailed information about it.
 
@@ -31,6 +51,8 @@ async def analyze_clothing_image(image_path: str) -> dict:
     Analyze a clothing image using Claude Vision API.
     Returns extracted attributes as a dictionary.
     """
+    print(f"[ImageAnalyzer] Analyzing image: {image_path}")
+
     # Read and encode the image
     image_path = Path(image_path)
     if not image_path.exists():
@@ -46,10 +68,17 @@ async def analyze_clothing_image(image_path: str) -> dict:
         ".webp": "image/webp",
     }
     media_type = media_type_map.get(suffix, "image/jpeg")
+    print(f"[ImageAnalyzer] Media type: {media_type}")
 
     # Read and base64 encode the image
     with open(image_path, "rb") as f:
         image_data = base64.standard_b64encode(f.read()).decode("utf-8")
+
+    print(f"[ImageAnalyzer] Image encoded, size: {len(image_data)} chars")
+
+    # Get the client (lazy initialization)
+    client = get_client()
+    print("[ImageAnalyzer] Calling Claude Vision API...")
 
     # Call Claude Vision API
     message = client.messages.create(
@@ -78,6 +107,7 @@ async def analyze_clothing_image(image_path: str) -> dict:
 
     # Parse the response
     response_text = message.content[0].text
+    print(f"[ImageAnalyzer] Got response: {response_text[:200]}...")
 
     # Try to extract JSON from the response
     try:
@@ -88,8 +118,11 @@ async def analyze_clothing_image(image_path: str) -> dict:
             response_text = response_text.split("```")[1].split("```")[0]
 
         result = json.loads(response_text.strip())
+        print(f"[ImageAnalyzer] Successfully parsed: {result.get('name')}")
         return result
     except json.JSONDecodeError as e:
+        print(f"[ImageAnalyzer] JSON parse error: {e}")
+        print(f"[ImageAnalyzer] Raw response: {response_text}")
         # Return a basic structure if parsing fails
         return {
             "name": "Unknown Item",

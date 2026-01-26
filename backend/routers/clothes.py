@@ -71,8 +71,15 @@ async def create_clothing_item(
     # Analyze the image with Claude Vision
     try:
         analysis = await analyze_clothing_image(file_path)
+    except ValueError as e:
+        # API key not configured - raise proper error
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
     except Exception as e:
-        # If analysis fails, use defaults
+        # Log the error and use defaults
+        print(f"[Clothes API] Image analysis failed: {type(e).__name__}: {str(e)}")
         analysis = {
             "name": name or "Unknown Item",
             "category": "top",
