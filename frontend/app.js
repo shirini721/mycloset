@@ -5,6 +5,7 @@ const API_BASE = '';
 // State
 let currentTab = 'wardrobe';
 let wardrobeItems = [];
+let selectedFile = null;  // Store the selected file for upload
 
 // DOM Elements
 const tabs = document.querySelectorAll('.tab');
@@ -107,19 +108,29 @@ categoryFilter.addEventListener('change', (e) => {
 
 // Upload Area
 function initUploadArea() {
-    uploadArea.addEventListener('click', () => imageInput.click());
+    // Click to open file picker
+    uploadArea.addEventListener('click', (e) => {
+        // Don't trigger if clicking on the preview image
+        if (e.target !== imagePreview) {
+            imageInput.click();
+        }
+    });
 
     uploadArea.addEventListener('dragover', (e) => {
         e.preventDefault();
+        e.stopPropagation();
         uploadArea.classList.add('dragover');
     });
 
-    uploadArea.addEventListener('dragleave', () => {
+    uploadArea.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         uploadArea.classList.remove('dragover');
     });
 
     uploadArea.addEventListener('drop', (e) => {
         e.preventDefault();
+        e.stopPropagation();
         uploadArea.classList.remove('dragover');
 
         const files = e.dataTransfer.files;
@@ -136,6 +147,7 @@ function initUploadArea() {
 }
 
 function handleImageSelect(file) {
+    selectedFile = file;  // Store the file globally
     const reader = new FileReader();
     reader.onload = (e) => {
         imagePreview.src = e.target.result;
@@ -155,8 +167,12 @@ function initForms() {
 async function handleAddItem(e) {
     e.preventDefault();
 
-    const file = imageInput.files[0];
-    if (!file) return;
+    // Use selectedFile (works for both click and drag-drop)
+    const file = selectedFile || imageInput.files[0];
+    if (!file) {
+        alert('Please select an image first');
+        return;
+    }
 
     const formData = new FormData();
     formData.append('image', file);
@@ -178,7 +194,8 @@ async function handleAddItem(e) {
         });
 
         if (!response.ok) {
-            throw new Error('Upload failed');
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Upload failed');
         }
 
         const item = await response.json();
@@ -191,17 +208,19 @@ async function handleAddItem(e) {
 
         // Reset form
         setTimeout(() => {
+            selectedFile = null;
             imageInput.value = '';
             imagePreview.classList.add('hidden');
             uploadPlaceholder.classList.remove('hidden');
             document.getElementById('item-name').value = '';
             uploadBtn.textContent = 'Upload & Analyze';
+            uploadBtn.disabled = true;
         }, 2000);
 
     } catch (error) {
         console.error('Error uploading item:', error);
         uploadStatus.classList.add('error');
-        uploadStatus.textContent = 'Error uploading item. Please try again.';
+        uploadStatus.textContent = `Error: ${error.message}. Please try again.`;
         uploadBtn.disabled = false;
         uploadBtn.textContent = 'Upload & Analyze';
     }
