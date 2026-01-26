@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 import os
 
 from database import engine, Base
-from routers import clothes, recommendations
+from routers import clothes, recommendations, gmail
 
 
 @asynccontextmanager
@@ -45,6 +45,7 @@ if os.path.exists(frontend_dir):
 # Include routers
 app.include_router(clothes.router)
 app.include_router(recommendations.router)
+app.include_router(gmail.router)
 
 
 @app.get("/")
