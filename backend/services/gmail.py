@@ -278,6 +278,8 @@ async def extract_order_info(service, message_id: str) -> Optional[dict]:
         from_email = headers.get('from', '')
         date = headers.get('date', '')
 
+        print(f"[Gmail] Processing email: {subject[:60]}... from {from_email[:40]}")
+
         # Get email body (HTML preferred)
         html_body = get_email_body(message['payload'], 'text/html')
         text_body = get_email_body(message['payload'], 'text/plain')
@@ -343,7 +345,10 @@ def extract_product_images(html_content: str, from_email: str) -> list[dict]:
     images = []
     seen_urls = set()
 
-    for img in soup.find_all('img'):
+    all_imgs = soup.find_all('img')
+    print(f"[Gmail] Found {len(all_imgs)} total <img> tags in email")
+
+    for img in all_imgs:
         src = img.get('src', '')
         alt = img.get('alt', '')
 
@@ -444,18 +449,14 @@ async def is_clothing_image(image_url: str) -> dict:
             response = await http_client.get(image_url)
             response.raise_for_status()
 
-            # Skip tiny images (likely tracking pixels or icons)
-            content_length = response.headers.get('content-length')
-            if content_length and int(content_length) < 5000:  # Less than 5KB
-                print(f"[Gmail] Skipping tiny image ({content_length} bytes): {image_url[:50]}...")
-                return {"is_clothing": False, "name": "", "reason": "Image too small (likely icon/pixel)"}
+            # Skip only very tiny images (tracking pixels are typically <1KB)
+            actual_size = len(response.content)
+            if actual_size < 1000:  # Less than 1KB - definitely a tracking pixel
+                print(f"[Gmail] Skipping tracking pixel ({actual_size} bytes): {image_url[:50]}...")
+                return {"is_clothing": False, "name": "", "reason": "Tracking pixel"}
 
             image_data = base64.standard_b64encode(response.content).decode("utf-8")
-
-            # Also check actual downloaded size
-            if len(response.content) < 5000:
-                print(f"[Gmail] Skipping tiny image ({len(response.content)} bytes): {image_url[:50]}...")
-                return {"is_clothing": False, "name": "", "reason": "Image too small (likely icon/pixel)"}
+            print(f"[Gmail] Analyzing image ({actual_size} bytes): {image_url[:60]}...")
 
             # Determine media type from content-type header
             content_type = response.headers.get('content-type', 'image/jpeg')
