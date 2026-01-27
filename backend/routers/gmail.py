@@ -274,7 +274,7 @@ async def scan_emails(
 @router.post("/scan-self")
 async def scan_self_emails(
     from_email: str = "zashktorab@gmail.com",
-    days: int = 365,
+    days: int = 10,
     include_seen: bool = False,
     db: Session = Depends(get_db)
 ):

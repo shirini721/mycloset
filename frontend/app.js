@@ -596,7 +596,7 @@ async function scanSelfEmails() {
     resultsDiv.classList.add('hidden');
 
     try {
-        const response = await fetch(`${API_BASE}/api/gmail/scan-self?from_email=${encodeURIComponent(fromEmail)}&days=365&include_seen=${includeSeen}`, {
+        const response = await fetch(`${API_BASE}/api/gmail/scan-self?from_email=${encodeURIComponent(fromEmail)}&days=10&include_seen=${includeSeen}`, {
             method: 'POST'
         });
         const data = await response.json();
