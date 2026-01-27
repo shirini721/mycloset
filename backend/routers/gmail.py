@@ -271,6 +271,39 @@ async def scan_emails(
             raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/scan-self")
+async def scan_self_emails(
+    from_email: str = "zashktorab@gmail.com",
+    days: int = 365,
+    include_seen: bool = False,
+    db: Session = Depends(get_db)
+):
+    """
+    Scan emails sent from yourself to yourself.
+    Useful for emailing yourself photos of clothes to add to closet.
+
+    Looks for emails with:
+    - Image attachments
+    - Subjects containing: closet, wardrobe, clothes, outfit
+    """
+    if not gmail_service.is_authenticated():
+        raise HTTPException(
+            status_code=401,
+            detail="Gmail not connected. Please authenticate first."
+        )
+
+    try:
+        result = await gmail_service.scan_self_sent_images(
+            from_email=from_email,
+            days_back=min(days, 3650),
+            db=db,
+            include_seen=include_seen
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 def parse_email_date(date_str: str):
     """Parse email date string to datetime object."""
     from email.utils import parsedate_to_datetime
