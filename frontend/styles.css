@@ -859,6 +859,55 @@ body {
     min-width: 150px;
 }
 
+/* More Actions Dropdown */
+.more-actions-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 4px;
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    min-width: 180px;
+    z-index: 100;
+    overflow: hidden;
+}
+
+.dropdown-menu.show {
+    display: block;
+}
+
+.dropdown-menu button {
+    display: block;
+    width: 100%;
+    padding: 10px 16px;
+    text-align: left;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--text-color);
+}
+
+.dropdown-menu button:hover {
+    background: var(--light-bg);
+}
+
+.dropdown-menu button.danger {
+    color: #e74c3c;
+}
+
+.dropdown-menu button.danger:hover {
+    background: #fdf2f2;
+}
+
 /* Self-Email Section */
 .self-email-section {
     margin-top: 20px;

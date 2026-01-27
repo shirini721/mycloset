@@ -218,13 +218,18 @@
                                         <option value="4-5">4-5 years ago</option>
                                         <option value="5+">5+ years ago</option>
                                     </select>
-                                    <button id="reset-date-range-btn" class="btn btn-small btn-outline" title="Clear & rescan emails from selected date range">Reset Date Range</button>
                                     <button id="select-all-btn" class="btn btn-small">Select All</button>
-                                    <button id="refresh-staged-btn" class="btn btn-small">Refresh</button>
                                     <button id="reject-selected-btn" class="btn btn-small btn-danger" disabled>Reject Selected</button>
-                                    <button id="reject-all-pending-btn" class="btn btn-small btn-danger">Reject All Pending</button>
-                                    <button id="cleanup-broken-btn" class="btn btn-small btn-outline">Remove Broken</button>
-                                    <button id="clear-all-btn" class="btn btn-small btn-outline">Clear All</button>
+                                    <div class="more-actions-dropdown">
+                                        <button id="more-actions-btn" class="btn btn-small btn-outline">More ▾</button>
+                                        <div class="dropdown-menu" id="more-actions-menu">
+                                            <button id="refresh-staged-btn">Refresh</button>
+                                            <button id="reject-all-pending-btn" class="danger">Reject All Pending</button>
+                                            <button id="reset-date-range-btn">Reset Date Range</button>
+                                            <button id="cleanup-broken-btn">Remove Broken Links</button>
+                                            <button id="clear-all-btn" class="danger">Clear All Data</button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <p class="staged-help">Click images to select, or use "Select All" to select all visible images.</p>
