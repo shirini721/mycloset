@@ -275,6 +275,19 @@ async def reject_by_retailer(
     return {"rejected": updated, "retailer": retailer}
 
 
+@router.post("/staged/reject-all")
+async def reject_all_pending(
+    db: Session = Depends(get_db)
+):
+    """Reject ALL pending images. Use after cherry-picking what you want to keep."""
+    updated = db.query(StagedImage).filter(
+        StagedImage.status == "pending"
+    ).update({"status": "rejected"})
+
+    db.commit()
+    return {"rejected": updated}
+
+
 class StagedImageAction(BaseModel):
     image_ids: List[int]
     action: str  # "approve" or "reject"
