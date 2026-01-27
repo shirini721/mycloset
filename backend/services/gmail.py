@@ -1049,18 +1049,26 @@ def extract_image_attachments(service, message_id: str, payload: dict) -> list:
 
     images = []
 
-    def process_parts(parts):
-        for part in parts:
+    def process_parts(parts, depth=0):
+        for i, part in enumerate(parts):
             mime_type = part.get('mimeType', '')
             filename = part.get('filename', '')
+            body = part.get('body', {})
 
-            # Check if it's an image attachment
-            if mime_type.startswith('image/') and filename:
-                body = part.get('body', {})
+            print(f"[Gmail] {'  '*depth}Part {i}: mimeType={mime_type}, filename={filename}, size={body.get('size', 0)}")
+
+            # Check if it's an image (with or without filename)
+            if mime_type.startswith('image/'):
                 attachment_id = body.get('attachmentId')
+
+                # Generate filename if not provided
+                if not filename:
+                    ext = mime_type.split('/')[-1].split(';')[0]
+                    filename = f"image_{i}.{ext}"
 
                 if attachment_id:
                     try:
+                        print(f"[Gmail] Fetching attachment: {filename} (id: {attachment_id[:20]}...)")
                         # Fetch the attachment
                         attachment = service.users().messages().attachments().get(
                             userId='me',
@@ -1076,14 +1084,38 @@ def extract_image_attachments(service, message_id: str, payload: dict) -> list:
                                 'url': data_url,
                                 'alt': filename
                             })
+                            print(f"[Gmail] Successfully extracted: {filename}")
                     except Exception as e:
                         print(f"[Gmail] Error fetching attachment {filename}: {e}")
+                elif body.get('data'):
+                    # Inline image with data directly in body
+                    data = body.get('data', '')
+                    if data:
+                        data_url = f"data:{mime_type};base64,{data}"
+                        images.append({
+                            'url': data_url,
+                            'alt': filename
+                        })
+                        print(f"[Gmail] Extracted inline image: {filename}")
 
             # Recursively process nested parts
             if 'parts' in part:
-                process_parts(part['parts'])
+                process_parts(part['parts'], depth + 1)
 
     if 'parts' in payload:
         process_parts(payload['parts'])
+    else:
+        # Single part message - check if the payload itself is an image
+        mime_type = payload.get('mimeType', '')
+        if mime_type.startswith('image/'):
+            body = payload.get('body', {})
+            data = body.get('data', '')
+            if data:
+                ext = mime_type.split('/')[-1]
+                images.append({
+                    'url': f"data:{mime_type};base64,{data}",
+                    'alt': f"image.{ext}"
+                })
 
+    print(f"[Gmail] Total attachments extracted: {len(images)}")
     return images
