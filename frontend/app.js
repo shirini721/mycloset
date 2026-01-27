@@ -650,6 +650,42 @@ function onDateRangeFilterChange() {
     loadStagedImages();
 }
 
+async function resetDateRange() {
+    const dateRange = document.getElementById('date-range-filter').value;
+    if (!dateRange) {
+        alert('Please select a date range first (e.g., "4-5 years ago")');
+        return;
+    }
+
+    const rangeLabel = document.querySelector(`#date-range-filter option[value="${dateRange}"]`).textContent;
+    if (!confirm(`This will delete all staged images from "${rangeLabel}" and clear their processed email records so they can be rescanned.\n\nAfter this, run a scan with the appropriate date range to fetch those emails again.\n\nContinue?`)) {
+        return;
+    }
+
+    const btn = document.getElementById('reset-date-range-btn');
+    const originalText = btn.textContent;
+    btn.textContent = 'Resetting...';
+    btn.disabled = true;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/gmail/staged/reset-by-date?date_range=${dateRange}`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+
+        alert(`Reset complete!\n- Deleted ${data.staged_deleted} staged images\n- Cleared ${data.processed_cleared} processed email records\n\nNow run a scan with the appropriate date range to re-fetch those emails.`);
+
+        loadRetailerStats();
+        loadStagedImages();
+    } catch (error) {
+        console.error('Error resetting date range:', error);
+        alert('Error resetting. See console for details.');
+    } finally {
+        btn.textContent = originalText;
+        btn.disabled = false;
+    }
+}
+
 async function cleanupBrokenImages() {
     if (!confirm('This will check all pending images and remove any with broken/expired URLs. Continue?')) {
         return;
@@ -956,6 +992,12 @@ function initGmailSection() {
     }
     if (rejectAllPendingBtn) {
         rejectAllPendingBtn.addEventListener('click', rejectAllPending);
+    }
+
+    // Reset date range button
+    const resetDateRangeBtn = document.getElementById('reset-date-range-btn');
+    if (resetDateRangeBtn) {
+        resetDateRangeBtn.addEventListener('click', resetDateRange);
     }
 
     // Check for OAuth callback params
