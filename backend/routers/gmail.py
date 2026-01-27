@@ -222,15 +222,25 @@ async def scan_emails(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def parse_email_date(date_str: str):
+    """Parse email date string to datetime object."""
+    from email.utils import parsedate_to_datetime
+    try:
+        return parsedate_to_datetime(date_str)
+    except:
+        return None
+
+
 @router.get("/staged")
 async def get_staged_images(
     status: str = "pending",
     retailer: str = None,
+    date_range: str = None,  # "4-5" means 4-5 years ago
     limit: int = 50,
     offset: int = 0,
     db: Session = Depends(get_db)
 ):
-    """Get staged images for review, optionally filtered by retailer."""
+    """Get staged images for review, optionally filtered by retailer and date range."""
     query = db.query(StagedImage)
 
     if status != "all":
@@ -239,8 +249,47 @@ async def get_staged_images(
     if retailer:
         query = query.filter(StagedImage.retailer == retailer)
 
-    total = query.count()
-    images = query.order_by(StagedImage.created_at.desc()).offset(offset).limit(limit).all()
+    # Get all matching images first
+    all_images = query.order_by(StagedImage.created_at.desc()).all()
+
+    # Apply date range filter if specified
+    if date_range:
+        from datetime import datetime, timedelta
+        now = datetime.now()
+
+        if date_range == "0-1":
+            min_date = now - timedelta(days=365)
+            max_date = now
+        elif date_range == "1-2":
+            min_date = now - timedelta(days=730)
+            max_date = now - timedelta(days=365)
+        elif date_range == "2-3":
+            min_date = now - timedelta(days=1095)
+            max_date = now - timedelta(days=730)
+        elif date_range == "3-4":
+            min_date = now - timedelta(days=1460)
+            max_date = now - timedelta(days=1095)
+        elif date_range == "4-5":
+            min_date = now - timedelta(days=1825)
+            max_date = now - timedelta(days=1460)
+        elif date_range == "5+":
+            min_date = now - timedelta(days=3650)
+            max_date = now - timedelta(days=1825)
+        else:
+            min_date = None
+            max_date = None
+
+        if min_date and max_date:
+            filtered_images = []
+            for img in all_images:
+                if img.email_date:
+                    email_dt = parse_email_date(img.email_date)
+                    if email_dt and min_date <= email_dt.replace(tzinfo=None) <= max_date:
+                        filtered_images.append(img)
+            all_images = filtered_images
+
+    total = len(all_images)
+    images = all_images[offset:offset + limit]
 
     return {
         "images": [img.to_dict() for img in images],
@@ -274,6 +323,51 @@ async def get_retailer_stats(
     }
 
 
+@router.get("/staged/date-ranges")
+async def get_date_range_stats(
+    status: str = "pending",
+    db: Session = Depends(get_db)
+):
+    """Get counts of staged images grouped by date range (years ago)."""
+    from datetime import datetime, timedelta
+
+    query = db.query(StagedImage)
+    if status != "all":
+        query = query.filter(StagedImage.status == status)
+
+    all_images = query.all()
+    now = datetime.now()
+
+    # Define date ranges
+    ranges = {
+        "0-1": {"label": "Last year", "min": now - timedelta(days=365), "max": now, "count": 0},
+        "1-2": {"label": "1-2 years ago", "min": now - timedelta(days=730), "max": now - timedelta(days=365), "count": 0},
+        "2-3": {"label": "2-3 years ago", "min": now - timedelta(days=1095), "max": now - timedelta(days=730), "count": 0},
+        "3-4": {"label": "3-4 years ago", "min": now - timedelta(days=1460), "max": now - timedelta(days=1095), "count": 0},
+        "4-5": {"label": "4-5 years ago", "min": now - timedelta(days=1825), "max": now - timedelta(days=1460), "count": 0},
+        "5+": {"label": "5+ years ago", "min": now - timedelta(days=3650), "max": now - timedelta(days=1825), "count": 0},
+    }
+
+    for img in all_images:
+        if img.email_date:
+            email_dt = parse_email_date(img.email_date)
+            if email_dt:
+                dt = email_dt.replace(tzinfo=None)
+                for key, r in ranges.items():
+                    if r["min"] <= dt <= r["max"]:
+                        r["count"] += 1
+                        break
+
+    return {
+        "date_ranges": [
+            {"key": k, "label": v["label"], "count": v["count"]}
+            for k, v in ranges.items()
+            if v["count"] > 0  # Only return ranges with images
+        ],
+        "total": sum(r["count"] for r in ranges.values())
+    }
+
+
 @router.post("/staged/reject-retailer")
 async def reject_by_retailer(
     retailer: str,
@@ -300,6 +394,42 @@ async def reject_all_pending(
 
     db.commit()
     return {"rejected": updated}
+
+
+@router.post("/staged/cleanup-broken")
+async def cleanup_broken_images(
+    db: Session = Depends(get_db)
+):
+    """Check and remove staged images with broken/expired URLs."""
+    import httpx
+
+    pending_images = db.query(StagedImage).filter(
+        StagedImage.status == "pending"
+    ).all()
+
+    broken_ids = []
+
+    async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
+        for img in pending_images:
+            try:
+                response = await client.head(img.image_url)
+                if response.status_code >= 400:
+                    broken_ids.append(img.id)
+            except:
+                broken_ids.append(img.id)
+
+    # Mark broken images as rejected
+    if broken_ids:
+        db.query(StagedImage).filter(
+            StagedImage.id.in_(broken_ids)
+        ).update({"status": "rejected"}, synchronize_session=False)
+        db.commit()
+
+    return {
+        "checked": len(pending_images),
+        "broken": len(broken_ids),
+        "broken_ids": broken_ids
+    }
 
 
 class StagedImageAction(BaseModel):

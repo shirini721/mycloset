@@ -568,6 +568,7 @@ async function scanEmails() {
 
 // Current retailer filter
 let currentRetailerFilter = '';
+let currentDateRangeFilter = '';
 
 async function loadRetailerStats() {
     const container = document.getElementById('retailer-list');
@@ -644,6 +645,44 @@ function onRetailerFilterChange() {
     loadStagedImages();
 }
 
+function onDateRangeFilterChange() {
+    currentDateRangeFilter = document.getElementById('date-range-filter').value;
+    loadStagedImages();
+}
+
+async function cleanupBrokenImages() {
+    if (!confirm('This will check all pending images and remove any with broken/expired URLs. Continue?')) {
+        return;
+    }
+
+    const btn = document.getElementById('cleanup-broken-btn');
+    const originalText = btn.textContent;
+    btn.textContent = 'Checking...';
+    btn.disabled = true;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/gmail/staged/cleanup-broken`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+
+        if (data.broken > 0) {
+            alert(`Found and removed ${data.broken} broken images out of ${data.checked} checked.`);
+        } else {
+            alert(`Checked ${data.checked} images - all URLs are still valid.`);
+        }
+
+        loadRetailerStats();
+        loadStagedImages();
+    } catch (error) {
+        console.error('Error checking broken images:', error);
+        alert('Error checking images. See console for details.');
+    } finally {
+        btn.textContent = originalText;
+        btn.disabled = false;
+    }
+}
+
 async function loadStagedImages() {
     const container = document.getElementById('staged-images');
     const emptyState = document.getElementById('staged-empty');
@@ -653,6 +692,9 @@ async function loadStagedImages() {
         let url = `${API_BASE}/api/gmail/staged?status=pending&limit=200`;
         if (currentRetailerFilter) {
             url += `&retailer=${encodeURIComponent(currentRetailerFilter)}`;
+        }
+        if (currentDateRangeFilter) {
+            url += `&date_range=${encodeURIComponent(currentDateRangeFilter)}`;
         }
 
         const response = await fetch(url);
@@ -931,6 +973,18 @@ function initGmailSection() {
     const retailerFilter = document.getElementById('retailer-filter');
     if (retailerFilter) {
         retailerFilter.addEventListener('change', onRetailerFilterChange);
+    }
+
+    // Date range filter dropdown
+    const dateRangeFilter = document.getElementById('date-range-filter');
+    if (dateRangeFilter) {
+        dateRangeFilter.addEventListener('change', onDateRangeFilterChange);
+    }
+
+    // Cleanup broken images button
+    const cleanupBtn = document.getElementById('cleanup-broken-btn');
+    if (cleanupBtn) {
+        cleanupBtn.addEventListener('click', cleanupBrokenImages);
     }
 
     checkGmailStatus();
