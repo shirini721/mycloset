@@ -1083,8 +1083,10 @@ def extract_image_attachments(service, message_id: str, payload: dict) -> list:
 
                         data = attachment.get('data', '')
                         if data:
+                            # Gmail returns URL-safe base64, convert to standard base64
+                            standard_b64 = data.replace('-', '+').replace('_', '/')
                             # Create a data URL for the image
-                            data_url = f"data:{mime_type};base64,{data}"
+                            data_url = f"data:{mime_type};base64,{standard_b64}"
                             images.append({
                                 'url': data_url,
                                 'alt': filename
@@ -1096,7 +1098,9 @@ def extract_image_attachments(service, message_id: str, payload: dict) -> list:
                     # Inline image with data directly in body
                     data = body.get('data', '')
                     if data:
-                        data_url = f"data:{mime_type};base64,{data}"
+                        # Gmail returns URL-safe base64, convert to standard base64
+                        standard_b64 = data.replace('-', '+').replace('_', '/')
+                        data_url = f"data:{mime_type};base64,{standard_b64}"
                         images.append({
                             'url': data_url,
                             'alt': filename
