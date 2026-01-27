@@ -566,6 +566,48 @@ async function scanEmails() {
     }
 }
 
+async function scanSelfEmails() {
+    const fromEmail = document.getElementById('self-email').value.trim();
+    const includeSeen = document.getElementById('include-seen').checked;
+    const loadingDiv = document.getElementById('scan-loading');
+    const resultsDiv = document.getElementById('scan-results');
+    const summaryP = document.getElementById('scan-summary');
+
+    if (!fromEmail) {
+        alert('Please enter your email address');
+        return;
+    }
+
+    loadingDiv.classList.remove('hidden');
+    resultsDiv.classList.add('hidden');
+
+    try {
+        const response = await fetch(`${API_BASE}/api/gmail/scan-self?from_email=${encodeURIComponent(fromEmail)}&days=365&include_seen=${includeSeen}`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+
+        loadingDiv.classList.add('hidden');
+
+        if (!response.ok) {
+            alert(`Error: ${data.detail || 'Failed to scan self-emails'}`);
+            return;
+        }
+
+        resultsDiv.classList.remove('hidden');
+        summaryP.textContent = `Self-email scan complete! Processed ${data.emails_processed} emails, found ${data.images_staged} new images.`;
+
+        // Refresh retailer stats and staged images
+        loadRetailerStats();
+        loadStagedImages();
+
+    } catch (error) {
+        console.error('Error scanning self-emails:', error);
+        loadingDiv.classList.add('hidden');
+        alert(`Error: ${error.message}`);
+    }
+}
+
 // Current retailer filter
 let currentRetailerFilter = '';
 let currentDateRangeFilter = '';
@@ -977,6 +1019,10 @@ function initGmailSection() {
     }
     if (scanBtn) {
         scanBtn.addEventListener('click', scanEmails);
+    }
+    const scanSelfBtn = document.getElementById('scan-self-btn');
+    if (scanSelfBtn) {
+        scanSelfBtn.addEventListener('click', scanSelfEmails);
     }
     if (refreshBtn) {
         refreshBtn.addEventListener('click', loadStagedImages);

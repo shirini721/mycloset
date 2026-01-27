@@ -859,6 +859,41 @@ body {
     min-width: 150px;
 }
 
+/* Self-Email Section */
+.self-email-section {
+    margin-top: 20px;
+    padding: 16px;
+    background: var(--card-bg);
+    border-radius: 8px;
+    border: 1px dashed var(--border-color);
+}
+
+.self-email-section h4 {
+    margin: 0 0 8px 0;
+    font-size: 1rem;
+}
+
+.self-email-section .help-text {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+
+.self-email-controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.self-email-controls input[type="email"] {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 0.9rem;
+    max-width: 300px;
+}
+
 /* Staged Images Section */
 .staged-section {
     margin-top: 24px;

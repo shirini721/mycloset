@@ -857,3 +857,233 @@ async def scan_and_stage_images_range(
     except Exception as e:
         print(f"[Gmail] Error scanning emails: {e}")
         raise
+
+
+async def scan_self_sent_images(
+    from_email: str,
+    days_back: int = 365,
+    db: Session = None,
+    include_seen: bool = False
+) -> dict:
+    """
+    Scan Gmail for emails from yourself (self-sent) containing images.
+    This allows users to email themselves photos of clothes to add to closet.
+
+    Looks for emails with subjects containing: closet, wardrobe, clothes, outfit
+    Or any email with image attachments from the specified sender.
+    """
+    from models import ProcessedEmail, StagedImage
+
+    credentials = get_credentials()
+    if not credentials:
+        raise ValueError("Not authenticated with Gmail")
+
+    service = build('gmail', 'v1', credentials=credentials)
+
+    # Build search query for self-sent emails
+    after_date = (datetime.now() - timedelta(days=days_back)).strftime('%Y/%m/%d')
+    query = f"after:{after_date} from:{from_email} (has:attachment OR subject:closet OR subject:wardrobe OR subject:clothes OR subject:outfit)"
+
+    print(f"[Gmail] Scanning self-sent emails from: {from_email}")
+    print(f"[Gmail] Query: {query}")
+
+    # Get list of already processed email IDs
+    seen_message_ids = set()
+    if db and not include_seen:
+        seen_emails = db.query(ProcessedEmail.message_id).all()
+        seen_message_ids = {e.message_id for e in seen_emails}
+        print(f"[Gmail] Excluding {len(seen_message_ids)} previously seen emails")
+
+    try:
+        # Paginate through ALL matching emails
+        messages = []
+        page_token = None
+
+        while True:
+            if page_token:
+                results = service.users().messages().list(
+                    userId='me',
+                    q=query,
+                    maxResults=500,
+                    pageToken=page_token
+                ).execute()
+            else:
+                results = service.users().messages().list(
+                    userId='me',
+                    q=query,
+                    maxResults=500
+                ).execute()
+
+            messages.extend(results.get('messages', []))
+            page_token = results.get('nextPageToken')
+
+            print(f"[Gmail] Fetched {len(messages)} emails so far...")
+
+            if not page_token:
+                break
+
+        print(f"[Gmail] Found {len(messages)} self-sent emails")
+
+        # Filter out already seen emails
+        if seen_message_ids:
+            messages = [m for m in messages if m['id'] not in seen_message_ids]
+            print(f"[Gmail] {len(messages)} emails after filtering seen ones")
+
+        emails_processed = 0
+        images_staged = 0
+
+        for msg in messages:
+            message_id = msg['id']
+
+            try:
+                # Get email details
+                message = service.users().messages().get(
+                    userId='me',
+                    id=message_id,
+                    format='full'
+                ).execute()
+
+                headers = {h['name'].lower(): h['value'] for h in message['payload']['headers']}
+                subject = headers.get('subject', '')
+                date = headers.get('date', '')
+
+                print(f"[Gmail] Processing self-sent: {subject[:50]}...")
+
+                images_found = []
+
+                # Extract inline images from HTML body
+                html_body = get_email_body(message['payload'], 'text/html')
+                if html_body:
+                    # Extract images but don't filter by retailer patterns
+                    images_found.extend(extract_images_from_html_simple(html_body))
+
+                # Extract image attachments
+                attachments = extract_image_attachments(service, message_id, message['payload'])
+                images_found.extend(attachments)
+
+                # Stage each image for review
+                for img in images_found:
+                    # Check if image already staged
+                    existing = db.query(StagedImage).filter(
+                        StagedImage.image_url == img['url']
+                    ).first()
+
+                    if not existing:
+                        staged = StagedImage(
+                            image_url=img['url'],
+                            alt_text=img.get('alt', subject),
+                            email_subject=subject,
+                            email_date=date,
+                            retailer="Self-sent",
+                            message_id=message_id,
+                            status="pending"
+                        )
+                        db.add(staged)
+                        images_staged += 1
+
+                # Mark email as processed
+                existing_email = db.query(ProcessedEmail).filter(
+                    ProcessedEmail.message_id == message_id
+                ).first()
+
+                if not existing_email:
+                    processed_email = ProcessedEmail(
+                        message_id=message_id,
+                        subject=subject,
+                        retailer="Self-sent",
+                        has_clothing_images=len(images_found) > 0
+                    )
+                    db.add(processed_email)
+
+                db.commit()
+                emails_processed += 1
+
+            except Exception as e:
+                print(f"[Gmail] Error processing email {message_id}: {e}")
+                db.rollback()
+                continue
+
+        print(f"[Gmail] Self-sent scan complete: {emails_processed} emails, {images_staged} images staged")
+        return {
+            "emails_processed": emails_processed,
+            "images_staged": images_staged,
+            "from_email": from_email
+        }
+
+    except Exception as e:
+        print(f"[Gmail] Error scanning self-sent emails: {e}")
+        raise
+
+
+def extract_images_from_html_simple(html_body: str) -> list:
+    """Extract all images from HTML without retailer filtering."""
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html_body, 'html.parser')
+    images = []
+
+    for img in soup.find_all('img'):
+        src = img.get('src', '')
+
+        # Skip tiny tracking pixels and data URIs
+        if not src or src.startswith('data:'):
+            continue
+
+        # Skip obvious tracking pixels
+        width = img.get('width', '')
+        height = img.get('height', '')
+        if width == '1' or height == '1':
+            continue
+
+        images.append({
+            'url': src,
+            'alt': img.get('alt', '')
+        })
+
+    return images
+
+
+def extract_image_attachments(service, message_id: str, payload: dict) -> list:
+    """Extract image attachments from email and return as data URLs."""
+    import base64
+
+    images = []
+
+    def process_parts(parts):
+        for part in parts:
+            mime_type = part.get('mimeType', '')
+            filename = part.get('filename', '')
+
+            # Check if it's an image attachment
+            if mime_type.startswith('image/') and filename:
+                body = part.get('body', {})
+                attachment_id = body.get('attachmentId')
+
+                if attachment_id:
+                    try:
+                        # Fetch the attachment
+                        attachment = service.users().messages().attachments().get(
+                            userId='me',
+                            messageId=message_id,
+                            id=attachment_id
+                        ).execute()
+
+                        data = attachment.get('data', '')
+                        if data:
+                            # Create a data URL for the image
+                            data_url = f"data:{mime_type};base64,{data}"
+                            images.append({
+                                'url': data_url,
+                                'alt': filename
+                            })
+                    except Exception as e:
+                        print(f"[Gmail] Error fetching attachment {filename}: {e}")
+
+            # Recursively process nested parts
+            if 'parts' in part:
+                process_parts(part['parts'])
+
+    if 'parts' in payload:
+        process_parts(payload['parts'])
+
+    return images
