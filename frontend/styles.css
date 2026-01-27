@@ -850,7 +850,8 @@ body {
     background: #c0392b;
 }
 
-.retailer-filter {
+.retailer-filter,
+.date-range-filter {
     padding: 6px 12px;
     border-radius: 4px;
     border: 1px solid var(--border-color);
