@@ -136,17 +136,31 @@ async def import_from_email(
     Import a clothing item from an email image URL.
     Downloads the image, analyzes it, and adds to wardrobe.
     """
-    # Generate unique filename
-    unique_filename = f"{uuid.uuid4()}.jpg"
-    file_path = os.path.join(UPLOAD_DIR, unique_filename)
+    # Download to temp file first to get content type
+    temp_path = os.path.join(UPLOAD_DIR, f"{uuid.uuid4()}.tmp")
 
     # Download the image
-    success = await gmail_service.download_image(request.image_url, file_path)
-    if not success:
+    result = await gmail_service.download_image(request.image_url, temp_path)
+    if not result["success"]:
         raise HTTPException(
             status_code=400,
             detail="Failed to download image from email"
         )
+
+    # Determine proper extension from content type
+    content_type = result.get("content_type", "image/jpeg")
+    ext_map = {
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "image/gif": ".gif",
+        "image/webp": ".webp",
+    }
+    ext = ext_map.get(content_type.split(";")[0].strip(), ".jpg")
+
+    # Rename to proper extension
+    unique_filename = f"{uuid.uuid4()}{ext}"
+    file_path = os.path.join(UPLOAD_DIR, unique_filename)
+    os.rename(temp_path, file_path)
 
     # Analyze the image
     try:
@@ -326,17 +340,31 @@ async def import_staged_image(
     if not image:
         raise HTTPException(status_code=404, detail="Staged image not found")
 
-    # Generate unique filename
-    unique_filename = f"{uuid.uuid4()}.jpg"
-    file_path = os.path.join(UPLOAD_DIR, unique_filename)
+    # Download to temp file first to get content type
+    temp_path = os.path.join(UPLOAD_DIR, f"{uuid.uuid4()}.tmp")
 
     # Download the image
-    success = await gmail_service.download_image(image.image_url, file_path)
-    if not success:
+    result = await gmail_service.download_image(image.image_url, temp_path)
+    if not result["success"]:
         raise HTTPException(
             status_code=400,
             detail="Failed to download image"
         )
+
+    # Determine proper extension from content type
+    content_type = result.get("content_type", "image/jpeg")
+    ext_map = {
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "image/gif": ".gif",
+        "image/webp": ".webp",
+    }
+    ext = ext_map.get(content_type.split(";")[0].strip(), ".jpg")
+
+    # Rename to proper extension
+    unique_filename = f"{uuid.uuid4()}{ext}"
+    file_path = os.path.join(UPLOAD_DIR, unique_filename)
+    os.rename(temp_path, file_path)
 
     # Analyze the image
     try:
