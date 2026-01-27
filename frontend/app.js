@@ -12,6 +12,20 @@ let tabs, tabContents, wardrobeGrid, categoryFilter, recommendForm, addForm;
 let imageInput, uploadArea, uploadPlaceholder, imagePreview, uploadBtn, uploadStatus;
 let itemModal, modalBody, modalClose;
 
+// Toggle dropdown menu
+function toggleDropdown(show = null) {
+    const menu = document.getElementById('more-actions-menu');
+    if (menu) {
+        if (show === null) {
+            menu.classList.toggle('show');
+        } else if (show) {
+            menu.classList.add('show');
+        } else {
+            menu.classList.remove('show');
+        }
+    }
+}
+
 // Initialize
 function init() {
     console.log('[MyCloset] Initializing...');
@@ -1025,7 +1039,10 @@ function initGmailSection() {
         scanSelfBtn.addEventListener('click', scanSelfEmails);
     }
     if (refreshBtn) {
-        refreshBtn.addEventListener('click', loadStagedImages);
+        refreshBtn.addEventListener('click', () => {
+            toggleDropdown(false);
+            loadStagedImages();
+        });
     }
     if (rejectBtn) {
         rejectBtn.addEventListener('click', rejectSelectedImages);
@@ -1034,16 +1051,45 @@ function initGmailSection() {
         selectAllBtn.addEventListener('click', selectAllStagedImages);
     }
     if (clearAllBtn) {
-        clearAllBtn.addEventListener('click', clearAllStagedImages);
+        clearAllBtn.addEventListener('click', () => {
+            toggleDropdown(false);
+            clearAllStagedImages();
+        });
     }
     if (rejectAllPendingBtn) {
-        rejectAllPendingBtn.addEventListener('click', rejectAllPending);
+        rejectAllPendingBtn.addEventListener('click', () => {
+            toggleDropdown(false);
+            rejectAllPending();
+        });
     }
 
     // Reset date range button
     const resetDateRangeBtn = document.getElementById('reset-date-range-btn');
     if (resetDateRangeBtn) {
-        resetDateRangeBtn.addEventListener('click', resetDateRange);
+        resetDateRangeBtn.addEventListener('click', () => {
+            toggleDropdown(false);
+            resetDateRange();
+        });
+    }
+
+    // More Actions dropdown
+    const moreActionsBtn = document.getElementById('more-actions-btn');
+    const moreActionsMenu = document.getElementById('more-actions-menu');
+    if (moreActionsBtn && moreActionsMenu) {
+        moreActionsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleDropdown();
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', () => {
+            toggleDropdown(false);
+        });
+
+        // Prevent clicks inside dropdown from closing it immediately
+        moreActionsMenu.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
     }
 
     // Check for OAuth callback params
@@ -1072,7 +1118,10 @@ function initGmailSection() {
     // Cleanup broken images button
     const cleanupBtn = document.getElementById('cleanup-broken-btn');
     if (cleanupBtn) {
-        cleanupBtn.addEventListener('click', cleanupBrokenImages);
+        cleanupBtn.addEventListener('click', () => {
+            toggleDropdown(false);
+            cleanupBrokenImages();
+        });
     }
 
     checkGmailStatus();
