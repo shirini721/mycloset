@@ -747,9 +747,41 @@ async function rejectSelectedImages() {
             throw new Error('Failed to reject images');
         }
 
+        loadRetailerStats();
         loadStagedImages();
     } catch (error) {
         console.error('Error rejecting images:', error);
+        alert(`Error: ${error.message}`);
+    }
+}
+
+async function rejectAllPending() {
+    const countSpan = document.getElementById('staged-count');
+    const count = parseInt(countSpan.textContent) || 0;
+
+    if (count === 0) {
+        alert('No pending images to reject.');
+        return;
+    }
+
+    if (!confirm(`Reject ALL ${count} remaining pending images? This cannot be undone.`)) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/gmail/staged/reject-all`, {
+            method: 'POST'
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to reject all images');
+        }
+
+        const data = await response.json();
+        alert(`Rejected ${data.rejected} images. You're all done!`);
+
+        loadRetailerStats();
+        loadStagedImages();
+    } catch (error) {
+        console.error('Error rejecting all images:', error);
         alert(`Error: ${error.message}`);
     }
 }
@@ -857,6 +889,7 @@ function initGmailSection() {
     const rejectBtn = document.getElementById('reject-selected-btn');
     const selectAllBtn = document.getElementById('select-all-btn');
     const clearAllBtn = document.getElementById('clear-all-btn');
+    const rejectAllPendingBtn = document.getElementById('reject-all-pending-btn');
 
     if (connectBtn) {
         connectBtn.addEventListener('click', connectGmail);
@@ -878,6 +911,9 @@ function initGmailSection() {
     }
     if (clearAllBtn) {
         clearAllBtn.addEventListener('click', clearAllStagedImages);
+    }
+    if (rejectAllPendingBtn) {
+        rejectAllPendingBtn.addEventListener('click', rejectAllPending);
     }
 
     // Check for OAuth callback params
