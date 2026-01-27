@@ -5,11 +5,10 @@ const API_BASE = '';
 // State
 let currentTab = 'wardrobe';
 let wardrobeItems = [];
-let selectedFile = null;  // Store the selected file for upload
 
 // DOM Elements - initialized in init()
 let tabs, tabContents, wardrobeGrid, categoryFilter, recommendForm, addForm;
-let imageInput, uploadArea, uploadPlaceholder, imagePreview, uploadBtn, uploadStatus;
+let itemPrompt, addBtn, addStatus;
 let itemModal, modalBody, modalClose;
 
 // Toggle dropdown menu
@@ -37,18 +36,15 @@ function init() {
     categoryFilter = document.getElementById('category-filter');
     recommendForm = document.getElementById('recommend-form');
     addForm = document.getElementById('add-form');
-    imageInput = document.getElementById('image-input');
-    uploadArea = document.getElementById('upload-area');
-    uploadPlaceholder = document.getElementById('upload-placeholder');
-    imagePreview = document.getElementById('image-preview');
-    uploadBtn = document.getElementById('upload-btn');
-    uploadStatus = document.getElementById('upload-status');
+    itemPrompt = document.getElementById('item-prompt');
+    addBtn = document.getElementById('add-btn');
+    addStatus = document.getElementById('add-status');
     itemModal = document.getElementById('item-modal');
     modalBody = document.getElementById('modal-body');
     modalClose = document.querySelector('.modal-close');
 
     // Check critical elements exist
-    if (!uploadArea || !imageInput || !uploadBtn || !addForm) {
+    if (!itemPrompt || !addBtn || !addForm) {
         console.error('[MyCloset] Critical DOM elements not found!');
         return;
     }
@@ -57,7 +53,6 @@ function init() {
 
     initTabs();
     initCategoryFilter();
-    initUploadArea();
     initForms();
     initModal();
     initGmailSection();
@@ -141,65 +136,13 @@ function renderWardrobe() {
     `).join('');
 }
 
-// Category Filter - moved into initForms()
+// Category Filter
 function initCategoryFilter() {
     if (categoryFilter) {
         categoryFilter.addEventListener('change', (e) => {
             loadWardrobe(e.target.value);
         });
     }
-}
-
-// Upload Area
-function initUploadArea() {
-    // Click to open file picker
-    uploadArea.addEventListener('click', (e) => {
-        // Don't trigger if clicking on the preview image
-        if (e.target !== imagePreview) {
-            imageInput.click();
-        }
-    });
-
-    uploadArea.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        uploadArea.classList.add('dragover');
-    });
-
-    uploadArea.addEventListener('dragleave', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        uploadArea.classList.remove('dragover');
-    });
-
-    uploadArea.addEventListener('drop', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        uploadArea.classList.remove('dragover');
-
-        const files = e.dataTransfer.files;
-        if (files.length > 0 && files[0].type.startsWith('image/')) {
-            handleImageSelect(files[0]);
-        }
-    });
-
-    imageInput.addEventListener('change', (e) => {
-        if (e.target.files.length > 0) {
-            handleImageSelect(e.target.files[0]);
-        }
-    });
-}
-
-function handleImageSelect(file) {
-    selectedFile = file;  // Store the file globally
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        imagePreview.src = e.target.result;
-        imagePreview.classList.remove('hidden');
-        uploadPlaceholder.classList.add('hidden');
-        uploadBtn.disabled = false;
-    };
-    reader.readAsDataURL(file);
 }
 
 // Forms
@@ -211,62 +154,52 @@ function initForms() {
 async function handleAddItem(e) {
     e.preventDefault();
 
-    // Use selectedFile (works for both click and drag-drop)
-    const file = selectedFile || imageInput.files[0];
-    if (!file) {
-        alert('Please select an image first');
+    const prompt = itemPrompt.value.trim();
+    if (!prompt) {
+        alert('Please describe the clothing item');
         return;
     }
 
-    const formData = new FormData();
-    formData.append('image', file);
-
-    const customName = document.getElementById('item-name').value;
-    if (customName) {
-        formData.append('name', customName);
-    }
-
-    uploadBtn.disabled = true;
-    uploadBtn.textContent = 'Analyzing...';
-    uploadStatus.classList.remove('hidden', 'success', 'error');
-    uploadStatus.textContent = 'Uploading and analyzing your item...';
+    addBtn.disabled = true;
+    addBtn.textContent = 'Adding...';
+    addStatus.classList.remove('hidden', 'success', 'error');
+    addStatus.textContent = 'Analyzing your description...';
 
     try {
-        const response = await fetch(`${API_BASE}/api/clothes`, {
+        const response = await fetch(`${API_BASE}/api/clothes/prompt`, {
             method: 'POST',
-            body: formData
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ prompt })
         });
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.detail || 'Upload failed');
+            throw new Error(errorData.detail || 'Failed to add item');
         }
 
         const item = await response.json();
 
-        uploadStatus.classList.add('success');
-        uploadStatus.innerHTML = `
+        addStatus.classList.add('success');
+        addStatus.innerHTML = `
             <strong>Success!</strong> Added "${item.name}" to your wardrobe.<br>
             <small>Category: ${item.subcategory || item.category} | Style: ${item.style} | Color: ${item.color}</small>
         `;
 
         // Reset form
         setTimeout(() => {
-            selectedFile = null;
-            imageInput.value = '';
-            imagePreview.classList.add('hidden');
-            uploadPlaceholder.classList.remove('hidden');
-            document.getElementById('item-name').value = '';
-            uploadBtn.textContent = 'Upload & Analyze';
-            uploadBtn.disabled = true;
+            itemPrompt.value = '';
+            addBtn.textContent = 'Add to Wardrobe';
+            addBtn.disabled = false;
         }, 2000);
 
     } catch (error) {
-        console.error('Error uploading item:', error);
-        uploadStatus.classList.add('error');
-        uploadStatus.textContent = `Error: ${error.message}. Please try again.`;
-        uploadBtn.disabled = false;
-        uploadBtn.textContent = 'Upload & Analyze';
+        console.error('Error adding item:', error);
+        addStatus.classList.add('error');
+        addStatus.textContent = `Error: ${error.message}. Please try again.`;
+        addBtn.disabled = false;
+        addBtn.textContent = 'Add to Wardrobe';
     }
 }
 

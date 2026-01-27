@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 from typing import Optional
 import os
 import uuid
@@ -10,7 +11,12 @@ from database import get_db
 from schemas import ClothingItemResponse, ClothingItemUpdate
 from services import clothing as clothing_service
 from services.image_analyzer import analyze_clothing_image
+from services.prompt_parser import parse_clothing_prompt
 from services.recommender import add_to_vector_store, remove_from_vector_store
+
+
+class PromptRequest(BaseModel):
+    prompt: str
 
 router = APIRouter(prefix="/api/clothes", tags=["clothes"])
 
@@ -27,12 +33,60 @@ async def get_all_clothes(
     return items
 
 
+@router.get("/image/{filename}")
+async def get_image(filename: str):
+    """Serve an uploaded image."""
+    file_path = os.path.join(UPLOAD_DIR, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(file_path)
+
+
 @router.get("/{item_id}", response_model=ClothingItemResponse)
 async def get_clothing_item(item_id: int, db: Session = Depends(get_db)):
     """Get a single clothing item by ID."""
     item = clothing_service.get_clothing_item(db, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Clothing item not found")
+    return item
+
+
+@router.post("/prompt", response_model=ClothingItemResponse)
+async def create_clothing_from_prompt(
+    request: PromptRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Create a new clothing item from a natural language description.
+    The AI will parse the description and extract all attributes.
+    """
+    if not request.prompt or len(request.prompt.strip()) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Please provide a description of the clothing item",
+        )
+
+    # Parse the natural language prompt
+    try:
+        analysis = await parse_clothing_prompt(request.prompt.strip())
+    except ValueError as e:
+        # API key not configured
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        print(f"[Clothes API] Prompt parsing failed: {type(e).__name__}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to parse description: {str(e)}"
+        )
+
+    # Create the clothing item in the database (no image)
+    item = clothing_service.create_clothing_item(
+        db, analysis, image_path=None
+    )
+
+    # Add to vector store for RAG
+    add_to_vector_store(item)
+
     return item
 
 
@@ -134,12 +188,3 @@ async def delete_clothing_item(item_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Clothing item not found")
 
     return {"message": "Item deleted successfully"}
-
-
-@router.get("/image/{filename}")
-async def get_image(filename: str):
-    """Serve an uploaded image."""
-    file_path = os.path.join(UPLOAD_DIR, filename)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Image not found")
-    return FileResponse(file_path)

@@ -98,23 +98,15 @@
             <section id="add" class="tab-content">
                 <div class="add-form">
                     <h2>Add New Item</h2>
-                    <p class="form-description">Upload a photo of your clothing item and our AI will automatically analyze it!</p>
+                    <p class="form-description">Describe the clothing item you want to add in natural language.</p>
                     <form id="add-form">
-                        <div class="upload-area" id="upload-area">
-                            <input type="file" id="image-input" accept="image/*" hidden>
-                            <div class="upload-placeholder" id="upload-placeholder">
-                                <div class="upload-icon">+</div>
-                                <p>Click or drag to upload an image</p>
-                            </div>
-                            <img id="image-preview" class="image-preview hidden" alt="Preview">
-                        </div>
                         <div class="form-group">
-                            <label for="item-name">Custom Name (optional)</label>
-                            <input type="text" id="item-name" placeholder="AI will generate a name if left blank">
+                            <label for="item-prompt">Describe your item</label>
+                            <textarea id="item-prompt" placeholder="e.g., A navy blue cotton Oxford shirt, perfect for casual Fridays at work" rows="3"></textarea>
                         </div>
-                        <button type="submit" class="btn btn-primary" id="upload-btn" disabled>Upload & Analyze</button>
+                        <button type="submit" class="btn btn-primary" id="add-btn">Add to Wardrobe</button>
                     </form>
-                    <div id="upload-status" class="upload-status hidden"></div>
+                    <div id="add-status" class="upload-status hidden"></div>
                 </div>
             </section>
 
