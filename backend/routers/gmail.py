@@ -548,3 +548,68 @@ async def clear_staged_images(
 
     db.commit()
     return {"deleted": deleted, "processed_cleared": processed_deleted}
+
+
+@router.post("/staged/reset-by-date")
+async def reset_staged_by_date_range(
+    date_range: str,  # "4-5" means 4-5 years ago
+    db: Session = Depends(get_db)
+):
+    """Reset staged images in a date range back to pending status AND clear their processed email records.
+
+    This allows re-reviewing old images that were previously approved/rejected.
+    """
+    from datetime import datetime, timedelta
+    from models import ProcessedEmail
+
+    now = datetime.now()
+
+    # Define date range
+    if date_range == "0-1":
+        min_date = now - timedelta(days=365)
+        max_date = now
+    elif date_range == "1-2":
+        min_date = now - timedelta(days=730)
+        max_date = now - timedelta(days=365)
+    elif date_range == "2-3":
+        min_date = now - timedelta(days=1095)
+        max_date = now - timedelta(days=730)
+    elif date_range == "3-4":
+        min_date = now - timedelta(days=1460)
+        max_date = now - timedelta(days=1095)
+    elif date_range == "4-5":
+        min_date = now - timedelta(days=1825)
+        max_date = now - timedelta(days=1460)
+    elif date_range == "5+":
+        min_date = now - timedelta(days=3650)
+        max_date = now - timedelta(days=1825)
+    else:
+        return {"error": "Invalid date range", "staged_reset": 0, "processed_cleared": 0}
+
+    # Get all staged images and filter by email date
+    all_staged = db.query(StagedImage).all()
+    message_ids_to_clear = set()
+    reset_count = 0
+
+    for img in all_staged:
+        if img.email_date:
+            email_dt = parse_email_date(img.email_date)
+            if email_dt and min_date <= email_dt.replace(tzinfo=None) <= max_date:
+                # Delete this staged image so it can be re-scanned fresh
+                message_ids_to_clear.add(img.message_id)
+                db.delete(img)
+                reset_count += 1
+
+    # Clear processed email records for these message IDs
+    processed_cleared = 0
+    if message_ids_to_clear:
+        processed_cleared = db.query(ProcessedEmail).filter(
+            ProcessedEmail.message_id.in_(message_ids_to_clear)
+        ).delete(synchronize_session=False)
+
+    db.commit()
+    return {
+        "staged_deleted": reset_count,
+        "processed_cleared": processed_cleared,
+        "date_range": date_range
+    }
