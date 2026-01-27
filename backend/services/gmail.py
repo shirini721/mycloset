@@ -705,3 +705,155 @@ async def scan_and_stage_images(
     except Exception as e:
         print(f"[Gmail] Error scanning emails: {e}")
         raise
+
+
+async def scan_and_stage_images_range(
+    after_date: datetime,
+    before_date: datetime,
+    db: Session = None,
+    include_seen: bool = False
+) -> dict:
+    """
+    Scan Gmail for order emails within a specific date range and stage images.
+    Used for scanning specific year ranges like "4-5 years ago".
+    """
+    from models import ProcessedEmail, StagedImage
+
+    credentials = get_credentials()
+    if not credentials:
+        raise ValueError("Not authenticated with Gmail")
+
+    service = build('gmail', 'v1', credentials=credentials)
+
+    # Build search query with both after and before dates
+    after_str = after_date.strftime('%Y/%m/%d')
+    before_str = before_date.strftime('%Y/%m/%d')
+    query = f"after:{after_str} before:{before_str} (subject:order OR subject:shipped OR subject:confirmation OR subject:receipt OR subject:\"thank you for shopping\" OR subject:\"thank you for your order\" OR subject:\"order details\")"
+
+    print(f"[Gmail] Scanning date range: {after_str} to {before_str}")
+    print(f"[Gmail] Query: {query}")
+
+    # Get list of already processed email IDs
+    seen_message_ids = set()
+    if db and not include_seen:
+        seen_emails = db.query(ProcessedEmail.message_id).all()
+        seen_message_ids = {e.message_id for e in seen_emails}
+        print(f"[Gmail] Excluding {len(seen_message_ids)} previously seen emails")
+
+    try:
+        # Paginate through ALL matching emails
+        messages = []
+        page_token = None
+
+        while True:
+            if page_token:
+                results = service.users().messages().list(
+                    userId='me',
+                    q=query,
+                    maxResults=500,
+                    pageToken=page_token
+                ).execute()
+            else:
+                results = service.users().messages().list(
+                    userId='me',
+                    q=query,
+                    maxResults=500
+                ).execute()
+
+            messages.extend(results.get('messages', []))
+            page_token = results.get('nextPageToken')
+
+            print(f"[Gmail] Fetched {len(messages)} emails so far...")
+
+            if not page_token:
+                break
+
+        print(f"[Gmail] Found {len(messages)} total order emails in range")
+
+        # Filter out already seen emails
+        if seen_message_ids:
+            messages = [m for m in messages if m['id'] not in seen_message_ids]
+            print(f"[Gmail] {len(messages)} emails after filtering seen ones")
+
+        emails_processed = 0
+        images_staged = 0
+
+        for msg in messages:
+            message_id = msg['id']
+
+            try:
+                # Get email details
+                message = service.users().messages().get(
+                    userId='me',
+                    id=message_id,
+                    format='full'
+                ).execute()
+
+                headers = {h['name'].lower(): h['value'] for h in message['payload']['headers']}
+                subject = headers.get('subject', '')
+                from_email = headers.get('from', '')
+                date = headers.get('date', '')
+                retailer = identify_retailer(from_email, subject)
+
+                print(f"[Gmail] Processing: {subject[:50]}...")
+
+                # Get HTML body
+                html_body = get_email_body(message['payload'], 'text/html')
+                if not html_body:
+                    continue
+
+                # Extract images (no AI filtering)
+                images = extract_product_images(html_body, from_email)
+
+                # Stage each image for review
+                for img in images:
+                    # Check if image already staged
+                    existing = db.query(StagedImage).filter(
+                        StagedImage.image_url == img['url']
+                    ).first()
+
+                    if not existing:
+                        staged = StagedImage(
+                            image_url=img['url'],
+                            alt_text=img.get('alt', ''),
+                            email_subject=subject,
+                            email_date=date,
+                            retailer=retailer,
+                            message_id=message_id,
+                            status="pending"
+                        )
+                        db.add(staged)
+                        images_staged += 1
+
+                # Mark email as processed
+                existing_email = db.query(ProcessedEmail).filter(
+                    ProcessedEmail.message_id == message_id
+                ).first()
+
+                if not existing_email:
+                    processed_email = ProcessedEmail(
+                        message_id=message_id,
+                        subject=subject,
+                        retailer=retailer,
+                        has_clothing_images=len(images) > 0
+                    )
+                    db.add(processed_email)
+
+                db.commit()
+                emails_processed += 1
+
+            except Exception as e:
+                print(f"[Gmail] Error processing email {message_id}: {e}")
+                db.rollback()
+                continue
+
+        print(f"[Gmail] Range scan complete: {emails_processed} emails, {images_staged} images staged")
+        return {
+            "emails_processed": emails_processed,
+            "images_staged": images_staged,
+            "date_range": f"{after_str} to {before_str}"
+        }
+
+    except Exception as e:
+        print(f"[Gmail] Error scanning emails: {e}")
+        raise
