@@ -194,13 +194,18 @@ async def import_from_email(
 
 @router.post("/scan")
 async def scan_emails(
-    days: int = 90,
+    days: str = "90",  # Can be "90" (days) or "4-5" (year range)
     include_seen: bool = False,
     db: Session = Depends(get_db)
 ):
     """
     Scan Gmail for order emails and stage images for review.
     No AI filtering - just extracts and stores images.
+
+    days parameter can be:
+    - A number like "90" meaning last 90 days
+    - A range like "4-5" meaning 4-5 years ago
+    - "5+" meaning 5+ years ago
     """
     if not gmail_service.is_authenticated():
         raise HTTPException(
@@ -208,18 +213,62 @@ async def scan_emails(
             detail="Gmail not connected. Please authenticate first."
         )
 
-    # Cap at 10 years
-    days = min(days, 3650)
+    # Parse the days/range parameter
+    from datetime import datetime, timedelta
+    now = datetime.now()
 
-    try:
-        result = await gmail_service.scan_and_stage_images(
-            days_back=days,
-            db=db,
-            include_seen=include_seen
-        )
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    if "-" in days or days.endswith("+"):
+        # It's a year range like "4-5" or "5+"
+        if days == "0-1":
+            after_date = now - timedelta(days=365)
+            before_date = now
+        elif days == "1-2":
+            after_date = now - timedelta(days=730)
+            before_date = now - timedelta(days=365)
+        elif days == "2-3":
+            after_date = now - timedelta(days=1095)
+            before_date = now - timedelta(days=730)
+        elif days == "3-4":
+            after_date = now - timedelta(days=1460)
+            before_date = now - timedelta(days=1095)
+        elif days == "4-5":
+            after_date = now - timedelta(days=1825)
+            before_date = now - timedelta(days=1460)
+        elif days == "5-6":
+            after_date = now - timedelta(days=2190)
+            before_date = now - timedelta(days=1825)
+        elif days == "6-7":
+            after_date = now - timedelta(days=2555)
+            before_date = now - timedelta(days=2190)
+        elif days == "5+":
+            after_date = now - timedelta(days=3650)
+            before_date = now - timedelta(days=1825)
+        else:
+            raise HTTPException(status_code=400, detail=f"Invalid date range: {days}")
+
+        try:
+            result = await gmail_service.scan_and_stage_images_range(
+                after_date=after_date,
+                before_date=before_date,
+                db=db,
+                include_seen=include_seen
+            )
+            return result
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    else:
+        # It's a simple days value
+        days_int = min(int(days), 3650)
+
+        try:
+            result = await gmail_service.scan_and_stage_images(
+                days_back=days_int,
+                db=db,
+                include_seen=include_seen
+            )
+            return result
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 def parse_email_date(date_str: str):
