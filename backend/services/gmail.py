@@ -414,20 +414,25 @@ def identify_retailer(from_email: str, subject: str) -> str:
     return "Unknown"
 
 
-async def download_image(url: str, save_path: str) -> bool:
-    """Download an image from URL and save it."""
+async def download_image(url: str, save_path: str) -> dict:
+    """Download an image from URL and save it.
+
+    Returns dict with 'success' bool and 'content_type' string.
+    """
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
             response = await client.get(url)
             response.raise_for_status()
 
+            content_type = response.headers.get('content-type', 'image/jpeg')
+
             with open(save_path, 'wb') as f:
                 f.write(response.content)
 
-            return True
+            return {"success": True, "content_type": content_type}
     except Exception as e:
         print(f"[Gmail] Error downloading image {url}: {e}")
-        return False
+        return {"success": False, "content_type": None}
 
 
 async def is_clothing_image(image_url: str) -> dict:
