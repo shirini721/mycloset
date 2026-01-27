@@ -980,6 +980,11 @@ async def scan_self_sent_images(
                         )
                         db.add(staged)
                         images_staged += 1
+                    elif existing.status == "rejected":
+                        # Re-stage previously rejected images
+                        existing.status = "pending"
+                        images_staged += 1
+                        print(f"[Gmail] Re-staged previously rejected: {img.get('alt', 'image')}")
 
                 # Mark email as processed
                 existing_email = db.query(ProcessedEmail).filter(
