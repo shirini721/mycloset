@@ -143,3 +143,25 @@ class ClothingItemNote(Base):
             "chat_id": self.chat_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class SavedOutfit(Base):
+    """User-created outfit collections."""
+    __tablename__ = "saved_outfits"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)  # e.g., "vacation planning", "work week"
+    description = Column(String)  # Optional description
+    item_ids = Column(JSON, nullable=False)  # List of clothing item IDs
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "item_ids": self.item_ids,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }

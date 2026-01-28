@@ -18,6 +18,7 @@
         <nav class="tabs">
             <button class="tab active" data-tab="wardrobe">My Wardrobe</button>
             <button class="tab" data-tab="recommend">Get Outfit</button>
+            <button class="tab" data-tab="create-outfit">Create Outfit</button>
             <button class="tab" data-tab="add">Add Clothes</button>
             <button class="tab" data-tab="import">Import from Email</button>
         </nav>
@@ -91,6 +92,76 @@
                                     <span>Send</span>
                                 </button>
                             </form>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Create Outfit Tab -->
+            <section id="create-outfit" class="tab-content">
+                <div class="outfit-builder">
+                    <div class="outfit-builder-header">
+                        <h2>Create Outfit</h2>
+                        <p class="form-description">Drag and drop items from your wardrobe to create and save outfits.</p>
+                    </div>
+
+                    <!-- Saved Outfits List -->
+                    <div class="saved-outfits-section">
+                        <div class="saved-outfits-header">
+                            <h3>My Outfits</h3>
+                            <button class="btn btn-primary btn-small" id="new-outfit-btn">+ New Outfit</button>
+                        </div>
+                        <div id="saved-outfits-list" class="saved-outfits-list">
+                            <div class="empty-state">
+                                <p>No outfits saved yet.</p>
+                                <p>Create your first outfit!</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Outfit Editor (hidden by default) -->
+                    <div id="outfit-editor" class="outfit-editor hidden">
+                        <div class="outfit-editor-header">
+                            <button class="btn btn-small" id="back-to-outfits-btn">&larr; Back</button>
+                            <input type="text" id="outfit-name-input" class="outfit-name-input" placeholder="Outfit name (e.g., Vacation Planning)">
+                            <button class="btn btn-primary btn-small" id="save-outfit-btn">Save Outfit</button>
+                            <button class="btn btn-danger btn-small hidden" id="delete-outfit-btn">Delete</button>
+                        </div>
+
+                        <div class="outfit-editor-content">
+                            <!-- Selected Items Drop Zone -->
+                            <div class="outfit-drop-zone" id="outfit-drop-zone">
+                                <h4>Outfit Items</h4>
+                                <p class="drop-hint">Drag items here or click items below to add</p>
+                                <div id="outfit-items" class="outfit-items-grid">
+                                    <!-- Selected items will appear here -->
+                                </div>
+                            </div>
+
+                            <!-- Wardrobe Items to Choose From -->
+                            <div class="outfit-wardrobe-picker">
+                                <div class="picker-header">
+                                    <h4>My Wardrobe</h4>
+                                    <select id="outfit-category-filter" class="category-filter">
+                                        <option value="">All Categories</option>
+                                        <option value="top">Tops</option>
+                                        <option value="bottom">Bottoms</option>
+                                        <option value="dress">Dresses</option>
+                                        <option value="outerwear">Outerwear</option>
+                                        <option value="shoes">Shoes</option>
+                                        <option value="accessory">Accessories</option>
+                                        <option value="activewear">Activewear</option>
+                                    </select>
+                                </div>
+                                <div id="outfit-wardrobe-items" class="outfit-wardrobe-grid">
+                                    <!-- Wardrobe items will be loaded here -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="outfit-description">Notes (optional)</label>
+                            <textarea id="outfit-description" placeholder="Add notes about this outfit..."></textarea>
                         </div>
                     </div>
                 </div>
