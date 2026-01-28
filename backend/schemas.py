@@ -73,3 +73,72 @@ class ImageAnalysisResult(BaseModel):
     weather_suitability: list[str]
     occasion_suitability: list[str]
     description: str
+
+
+# Chat-based outfit suggestions schemas
+class OutfitChatCreate(BaseModel):
+    event_type: Optional[str] = None
+    location: Optional[str] = None
+    initial_message: str  # The first user message
+
+
+class OutfitChatMessageCreate(BaseModel):
+    content: str  # User's message
+
+
+class OutfitChatMessageResponse(BaseModel):
+    id: int
+    chat_id: int
+    role: str
+    content: str
+    outfit_data: Optional[list] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class OutfitChatResponse(BaseModel):
+    id: int
+    title: Optional[str] = None
+    event_type: Optional[str] = None
+    location: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    messages: list[OutfitChatMessageResponse] = []
+
+    class Config:
+        from_attributes = True
+
+
+class OutfitChatListResponse(BaseModel):
+    id: int
+    title: Optional[str] = None
+    event_type: Optional[str] = None
+    created_at: Optional[datetime] = None
+    message_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+# Clothing item notes schemas
+class ClothingItemNoteCreate(BaseModel):
+    note: str
+    note_type: Optional[str] = "general"  # weather, occasion, style, general
+
+
+class ClothingItemNoteResponse(BaseModel):
+    id: int
+    item_id: int
+    note: str
+    note_type: Optional[str] = None
+    source: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ClothingItemWithNotesResponse(ClothingItemResponse):
+    notes: list[ClothingItemNoteResponse] = []

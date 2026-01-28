@@ -1128,3 +1128,659 @@ function initGmailSection() {
     loadRetailerStats();
     loadStagedImages();
 }
+
+// ============ Chat Functions ============
+
+let currentChatId = null;
+let chatList = [];
+
+function initChat() {
+    const chatForm = document.getElementById('chat-form');
+    const newChatBtn = document.getElementById('new-chat-btn');
+    const chatInput = document.getElementById('chat-input');
+
+    if (chatForm) {
+        chatForm.addEventListener('submit', handleChatSubmit);
+    }
+
+    if (newChatBtn) {
+        newChatBtn.addEventListener('click', startNewChat);
+    }
+
+    // Auto-resize textarea
+    if (chatInput) {
+        chatInput.addEventListener('input', () => {
+            chatInput.style.height = 'auto';
+            chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
+        });
+
+        // Submit on Enter (without Shift)
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                chatForm.dispatchEvent(new Event('submit'));
+            }
+        });
+    }
+
+    loadChatList();
+}
+
+async function loadChatList() {
+    try {
+        const response = await fetch(`${API_BASE}/api/chat`);
+        chatList = await response.json();
+        renderChatList();
+    } catch (error) {
+        console.error('Error loading chat list:', error);
+    }
+}
+
+function renderChatList() {
+    const container = document.getElementById('chat-list');
+    if (!container) return;
+
+    if (chatList.length === 0) {
+        container.innerHTML = '<p class="empty-state" style="padding: 20px; font-size: 0.85rem;">No conversations yet</p>';
+        return;
+    }
+
+    container.innerHTML = chatList.map(chat => `
+        <div class="chat-list-item ${chat.id === currentChatId ? 'active' : ''}" onclick="loadChat(${chat.id})">
+            <div class="chat-list-item-title">${chat.title || 'Outfit Chat'}</div>
+            <div class="chat-list-item-date">${formatDate(chat.created_at)}</div>
+        </div>
+    `).join('');
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString();
+}
+
+async function loadChat(chatId) {
+    try {
+        const response = await fetch(`${API_BASE}/api/chat/${chatId}`);
+        if (!response.ok) throw new Error('Chat not found');
+
+        const chat = await response.json();
+        currentChatId = chatId;
+        renderChat(chat);
+        renderChatList();
+
+        // Update location input if chat has one
+        const locationInput = document.getElementById('chat-location');
+        if (locationInput && chat.location) {
+            locationInput.value = chat.location;
+        }
+    } catch (error) {
+        console.error('Error loading chat:', error);
+    }
+}
+
+function renderChat(chat) {
+    const messagesContainer = document.getElementById('chat-messages');
+    const header = document.getElementById('chat-header');
+
+    if (header) {
+        header.innerHTML = `
+            <h2>${chat.title || 'Outfit Chat'}</h2>
+            <p class="chat-subtitle">${chat.event_type ? `For ${chat.event_type}` : 'Your personal stylist'}</p>
+        `;
+    }
+
+    if (!messagesContainer) return;
+
+    messagesContainer.innerHTML = chat.messages.map(msg => renderChatMessage(msg)).join('');
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function renderChatMessage(message) {
+    const isUser = message.role === 'user';
+
+    let outfitCardsHtml = '';
+    if (message.outfit_data && message.outfit_data.length > 0) {
+        outfitCardsHtml = message.outfit_data.map(outfit => `
+            <div class="chat-outfit-card">
+                <div class="chat-outfit-name">${outfit.outfit_name}</div>
+                <div class="chat-outfit-items">
+                    ${outfit.items.map(item => `
+                        <div class="chat-outfit-item" onclick="showItemDetails(${item.id})">
+                            <img src="${item.image_path || ''}" alt="${item.name}"
+                                 onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2280%22><rect fill=%22%23e1e8ed%22 width=%2280%22 height=%2280%22/></svg>'">
+                            <div class="chat-outfit-item-name">${item.name}</div>
+                        </div>
+                    `).join('')}
+                </div>
+                ${outfit.reasoning ? `<div class="chat-outfit-reasoning">${outfit.reasoning}</div>` : ''}
+            </div>
+        `).join('');
+    }
+
+    return `
+        <div class="chat-message ${isUser ? 'user' : 'assistant'}">
+            <div class="chat-message-avatar">${isUser ? 'U' : 'AI'}</div>
+            <div class="chat-message-content">
+                <div class="chat-message-bubble">${escapeHtml(message.content)}</div>
+                ${outfitCardsHtml}
+            </div>
+        </div>
+    `;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function startNewChat() {
+    currentChatId = null;
+    const messagesContainer = document.getElementById('chat-messages');
+    const header = document.getElementById('chat-header');
+    const locationInput = document.getElementById('chat-location');
+
+    if (header) {
+        header.innerHTML = `
+            <h2>Outfit Assistant</h2>
+            <p class="chat-subtitle">Ask me to put together an outfit for you!</p>
+        `;
+    }
+
+    if (messagesContainer) {
+        messagesContainer.innerHTML = `
+            <div class="chat-welcome">
+                <h3>Hi! I'm your personal stylist.</h3>
+                <p>Tell me what you need an outfit for, and I'll help you put something together from your wardrobe.</p>
+                <div class="quick-starts">
+                    <button class="quick-start-btn" onclick="startQuickChat('casual')">Casual day out</button>
+                    <button class="quick-start-btn" onclick="startQuickChat('work')">Work outfit</button>
+                    <button class="quick-start-btn" onclick="startQuickChat('date')">Date night</button>
+                    <button class="quick-start-btn" onclick="startQuickChat('party')">Going to a party</button>
+                </div>
+            </div>
+        `;
+    }
+
+    if (locationInput) {
+        locationInput.value = '';
+    }
+
+    renderChatList();
+}
+
+function startQuickChat(eventType) {
+    const messages = {
+        'casual': "Put together a casual outfit for me for a day out",
+        'work': "I need a professional outfit for work today",
+        'date': "Help me pick out something nice for a date night",
+        'party': "I'm going to a party tonight, what should I wear?"
+    };
+
+    const chatInput = document.getElementById('chat-input');
+    if (chatInput) {
+        chatInput.value = messages[eventType] || `Put together a ${eventType} outfit for me`;
+        handleChatSubmit(new Event('submit'));
+    }
+}
+
+async function handleChatSubmit(e) {
+    e.preventDefault();
+
+    const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('chat-send-btn');
+    const messagesContainer = document.getElementById('chat-messages');
+    const locationInput = document.getElementById('chat-location');
+
+    const message = chatInput.value.trim();
+    if (!message) return;
+
+    // Clear input
+    chatInput.value = '';
+    chatInput.style.height = 'auto';
+
+    // Disable send button
+    sendBtn.disabled = true;
+
+    // If this is a new chat, create it
+    if (!currentChatId) {
+        // Clear welcome message
+        messagesContainer.innerHTML = '';
+
+        // Add user message to UI
+        messagesContainer.innerHTML += renderChatMessage({
+            role: 'user',
+            content: message
+        });
+
+        // Add typing indicator
+        messagesContainer.innerHTML += `
+            <div class="chat-message assistant" id="typing-indicator">
+                <div class="chat-message-avatar">AI</div>
+                <div class="chat-message-content">
+                    <div class="chat-typing">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            </div>
+        `;
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        try {
+            // Detect event type from message
+            const eventType = detectEventType(message);
+
+            const response = await fetch(`${API_BASE}/api/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    event_type: eventType,
+                    location: locationInput?.value || null,
+                    initial_message: message
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Failed to create chat');
+            }
+
+            const chat = await response.json();
+            currentChatId = chat.id;
+            renderChat(chat);
+            loadChatList();
+
+        } catch (error) {
+            console.error('Error creating chat:', error);
+            // Remove typing indicator and show error
+            document.getElementById('typing-indicator')?.remove();
+            messagesContainer.innerHTML += renderChatMessage({
+                role: 'assistant',
+                content: `Sorry, I had trouble with that. ${error.message}`
+            });
+        }
+
+    } else {
+        // Continue existing chat
+        messagesContainer.innerHTML += renderChatMessage({
+            role: 'user',
+            content: message
+        });
+
+        // Add typing indicator
+        messagesContainer.innerHTML += `
+            <div class="chat-message assistant" id="typing-indicator">
+                <div class="chat-message-avatar">AI</div>
+                <div class="chat-message-content">
+                    <div class="chat-typing">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            </div>
+        `;
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        try {
+            const response = await fetch(`${API_BASE}/api/chat/${currentChatId}/message`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    content: message
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Failed to send message');
+            }
+
+            const chat = await response.json();
+            renderChat(chat);
+
+        } catch (error) {
+            console.error('Error sending message:', error);
+            document.getElementById('typing-indicator')?.remove();
+            messagesContainer.innerHTML += renderChatMessage({
+                role: 'assistant',
+                content: `Sorry, I had trouble with that. ${error.message}`
+            });
+        }
+    }
+
+    sendBtn.disabled = false;
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function detectEventType(message) {
+    const msg = message.toLowerCase();
+    if (msg.includes('work') || msg.includes('office') || msg.includes('professional') || msg.includes('meeting')) {
+        return 'work';
+    }
+    if (msg.includes('date') || msg.includes('romantic') || msg.includes('dinner')) {
+        return 'date';
+    }
+    if (msg.includes('party') || msg.includes('club') || msg.includes('night out')) {
+        return 'party';
+    }
+    if (msg.includes('formal') || msg.includes('wedding') || msg.includes('event')) {
+        return 'formal';
+    }
+    if (msg.includes('workout') || msg.includes('gym') || msg.includes('exercise')) {
+        return 'workout';
+    }
+    if (msg.includes('beach') || msg.includes('pool') || msg.includes('swim')) {
+        return 'beach';
+    }
+    if (msg.includes('outdoor') || msg.includes('hike') || msg.includes('walk')) {
+        return 'outdoor';
+    }
+    return 'casual';
+}
+
+// Initialize chat when switching to recommend tab
+const originalSwitchTab = switchTab;
+switchTab = function(tabId) {
+    originalSwitchTab(tabId);
+    if (tabId === 'recommend') {
+        initChat();
+    }
+};
+
+// Make chat functions globally available
+window.loadChat = loadChat;
+window.startQuickChat = startQuickChat;
+
+// ============ Item Edit Functions ============
+
+let currentEditItem = null;
+
+async function showItemDetails(itemId) {
+    // Fetch full item details including notes
+    try {
+        const [itemResponse, notesResponse] = await Promise.all([
+            fetch(`${API_BASE}/api/clothes/${itemId}`),
+            fetch(`${API_BASE}/api/chat/items/${itemId}/notes`)
+        ]);
+
+        const item = await itemResponse.json();
+        const notes = await notesResponse.json();
+
+        currentEditItem = item;
+        renderItemModalWithEdit(item, notes);
+    } catch (error) {
+        console.error('Error fetching item details:', error);
+        // Fallback to basic modal
+        const item = wardrobeItems.find(i => i.id === itemId);
+        if (item) {
+            renderItemModalWithEdit(item, []);
+        }
+    }
+}
+
+function renderItemModalWithEdit(item, notes) {
+    const weatherOptions = ['hot', 'warm', 'mild', 'cool', 'cold', 'rainy'];
+    const occasionOptions = ['casual', 'work', 'formal', 'party', 'date', 'workout', 'outdoor', 'beach', 'wedding'];
+    const styleOptions = ['casual', 'formal', 'business casual', 'sporty', 'bohemian', 'elegant', 'streetwear', 'preppy', 'minimalist'];
+
+    modalBody.innerHTML = `
+        <img src="${item.image_path || ''}" alt="${item.name}" onerror="this.style.display='none'">
+        <h3>${item.name}</h3>
+        <div class="item-details">
+            <div class="item-detail">
+                <div class="item-detail-label">Category</div>
+                <div class="item-detail-value">${item.subcategory || item.category}</div>
+            </div>
+            <div class="item-detail">
+                <div class="item-detail-label">Color</div>
+                <div class="item-detail-value">${item.color || 'Unknown'}</div>
+            </div>
+            <div class="item-detail">
+                <div class="item-detail-label">Material</div>
+                <div class="item-detail-value">${item.material || 'Unknown'}</div>
+            </div>
+            <div class="item-detail">
+                <div class="item-detail-label">Pattern</div>
+                <div class="item-detail-value">${item.pattern || 'Solid'}</div>
+            </div>
+            <div class="item-detail">
+                <div class="item-detail-label">Style</div>
+                <div class="item-detail-value">${item.style || 'Casual'}</div>
+            </div>
+            <div class="item-detail">
+                <div class="item-detail-label">Weather</div>
+                <div class="item-detail-value">${(item.weather_suitability || []).join(', ') || 'Any'}</div>
+            </div>
+        </div>
+        ${item.description ? `
+            <div class="item-description">
+                <strong>Description:</strong> ${item.description}
+            </div>
+        ` : ''}
+        <div class="item-detail" style="margin-bottom: 20px;">
+            <div class="item-detail-label">Good for</div>
+            <div class="item-detail-value">${(item.occasion_suitability || []).join(', ') || 'Any occasion'}</div>
+        </div>
+
+        <!-- Notes Section -->
+        <div class="item-notes-section">
+            <h4>Notes & Feedback</h4>
+            <div class="item-notes-list" id="item-notes-list">
+                ${notes.length === 0 ? '<p style="color: var(--text-secondary); font-size: 0.9rem;">No notes yet</p>' :
+                    notes.map(note => `
+                        <div class="item-note">
+                            <div class="item-note-content">
+                                <div class="item-note-text">${escapeHtml(note.note)}</div>
+                                <div class="item-note-meta">${note.note_type || 'general'} • ${note.source === 'chat' ? 'from chat' : 'manual'}</div>
+                            </div>
+                            <button class="item-note-delete" onclick="deleteItemNote(${note.id})">&times;</button>
+                        </div>
+                    `).join('')
+                }
+            </div>
+            <div class="add-note-form">
+                <input type="text" id="new-note-input" placeholder="Add a note about this item...">
+                <select id="new-note-type">
+                    <option value="general">General</option>
+                    <option value="weather">Weather</option>
+                    <option value="occasion">Occasion</option>
+                    <option value="style">Style</option>
+                    <option value="fit">Fit</option>
+                </select>
+                <button class="btn btn-small btn-primary" onclick="addItemNote(${item.id})">Add</button>
+            </div>
+        </div>
+
+        <!-- Edit Section -->
+        <div class="item-edit-form">
+            <h4>Edit Item</h4>
+            <div class="edit-form-grid">
+                <div class="edit-field">
+                    <label>Name</label>
+                    <input type="text" id="edit-name" value="${item.name || ''}">
+                </div>
+                <div class="edit-field">
+                    <label>Color</label>
+                    <input type="text" id="edit-color" value="${item.color || ''}">
+                </div>
+                <div class="edit-field">
+                    <label>Material</label>
+                    <input type="text" id="edit-material" value="${item.material || ''}">
+                </div>
+                <div class="edit-field">
+                    <label>Pattern</label>
+                    <input type="text" id="edit-pattern" value="${item.pattern || ''}">
+                </div>
+                <div class="edit-field">
+                    <label>Style</label>
+                    <select id="edit-style">
+                        ${styleOptions.map(s => `<option value="${s}" ${item.style === s ? 'selected' : ''}>${s}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="edit-field">
+                    <label>Category</label>
+                    <select id="edit-category">
+                        <option value="top" ${item.category === 'top' ? 'selected' : ''}>Top</option>
+                        <option value="bottom" ${item.category === 'bottom' ? 'selected' : ''}>Bottom</option>
+                        <option value="dress" ${item.category === 'dress' ? 'selected' : ''}>Dress</option>
+                        <option value="outerwear" ${item.category === 'outerwear' ? 'selected' : ''}>Outerwear</option>
+                        <option value="shoes" ${item.category === 'shoes' ? 'selected' : ''}>Shoes</option>
+                        <option value="accessory" ${item.category === 'accessory' ? 'selected' : ''}>Accessory</option>
+                        <option value="activewear" ${item.category === 'activewear' ? 'selected' : ''}>Activewear</option>
+                    </select>
+                </div>
+                <div class="multi-select-field">
+                    <label>Weather Suitability</label>
+                    <div class="multi-select-options" id="edit-weather">
+                        ${weatherOptions.map(w => `
+                            <span class="multi-select-option ${(item.weather_suitability || []).includes(w) ? 'selected' : ''}"
+                                  onclick="toggleMultiSelect(this, 'weather')"
+                                  data-value="${w}">${w}</span>
+                        `).join('')}
+                    </div>
+                </div>
+                <div class="multi-select-field">
+                    <label>Occasion Suitability</label>
+                    <div class="multi-select-options" id="edit-occasion">
+                        ${occasionOptions.map(o => `
+                            <span class="multi-select-option ${(item.occasion_suitability || []).includes(o) ? 'selected' : ''}"
+                                  onclick="toggleMultiSelect(this, 'occasion')"
+                                  data-value="${o}">${o}</span>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+            <div class="edit-actions">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveItemChanges(${item.id})">Save Changes</button>
+            </div>
+        </div>
+
+        <div class="modal-actions" style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 20px;">
+            <button class="btn btn-danger" onclick="deleteItem(${item.id})">Delete Item</button>
+        </div>
+    `;
+    itemModal.classList.remove('hidden');
+}
+
+function toggleMultiSelect(element, type) {
+    element.classList.toggle('selected');
+}
+
+function getMultiSelectValues(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return [];
+
+    const selected = container.querySelectorAll('.multi-select-option.selected');
+    return Array.from(selected).map(el => el.dataset.value);
+}
+
+async function saveItemChanges(itemId) {
+    const updateData = {
+        name: document.getElementById('edit-name').value,
+        color: document.getElementById('edit-color').value,
+        material: document.getElementById('edit-material').value,
+        pattern: document.getElementById('edit-pattern').value,
+        style: document.getElementById('edit-style').value,
+        category: document.getElementById('edit-category').value,
+        weather_suitability: getMultiSelectValues('edit-weather'),
+        occasion_suitability: getMultiSelectValues('edit-occasion'),
+    };
+
+    try {
+        const response = await fetch(`${API_BASE}/api/clothes/${itemId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updateData)
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to update item');
+        }
+
+        const updatedItem = await response.json();
+
+        // Refresh wardrobe
+        loadWardrobe();
+
+        // Refresh the modal with updated data
+        const notesResponse = await fetch(`${API_BASE}/api/chat/items/${itemId}/notes`);
+        const notes = await notesResponse.json();
+        renderItemModalWithEdit(updatedItem, notes);
+
+        alert('Item updated successfully!');
+
+    } catch (error) {
+        console.error('Error saving item changes:', error);
+        alert(`Error: ${error.message}`);
+    }
+}
+
+async function addItemNote(itemId) {
+    const noteInput = document.getElementById('new-note-input');
+    const noteType = document.getElementById('new-note-type');
+
+    const note = noteInput.value.trim();
+    if (!note) {
+        alert('Please enter a note');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/chat/items/${itemId}/notes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                note: note,
+                note_type: noteType.value
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to add note');
+        }
+
+        // Refresh the modal
+        noteInput.value = '';
+        showItemDetails(itemId);
+
+    } catch (error) {
+        console.error('Error adding note:', error);
+        alert(`Error: ${error.message}`);
+    }
+}
+
+async function deleteItemNote(noteId) {
+    if (!confirm('Delete this note?')) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/chat/items/notes/${noteId}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to delete note');
+        }
+
+        // Refresh modal
+        if (currentEditItem) {
+            showItemDetails(currentEditItem.id);
+        }
+
+    } catch (error) {
+        console.error('Error deleting note:', error);
+        alert(`Error: ${error.message}`);
+    }
+}
+
+// Make edit functions globally available
+window.toggleMultiSelect = toggleMultiSelect;
+window.saveItemChanges = saveItemChanges;
+window.addItemNote = addItemNote;
+window.deleteItemNote = deleteItemNote;

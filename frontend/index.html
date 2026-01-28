@@ -49,48 +49,50 @@
                 </div>
             </section>
 
-            <!-- Recommendations Tab -->
+            <!-- Outfit Chat Tab -->
             <section id="recommend" class="tab-content">
-                <div class="recommend-form">
-                    <h2>Get Outfit Recommendations</h2>
-                    <form id="recommend-form">
-                        <div class="form-group">
-                            <label for="event-type">What's the occasion?</label>
-                            <select id="event-type" required>
-                                <option value="">Select an occasion...</option>
-                                <option value="work">Work / Office</option>
-                                <option value="casual">Casual Day Out</option>
-                                <option value="date">Date Night</option>
-                                <option value="party">Party</option>
-                                <option value="formal">Formal Event</option>
-                                <option value="wedding">Wedding</option>
-                                <option value="workout">Workout / Gym</option>
-                                <option value="outdoor">Outdoor Activity</option>
-                                <option value="beach">Beach / Pool</option>
-                            </select>
+                <div class="chat-container">
+                    <div class="chat-sidebar">
+                        <div class="chat-sidebar-header">
+                            <h3>Conversations</h3>
+                            <button class="btn btn-small btn-primary" id="new-chat-btn">+ New</button>
                         </div>
-                        <div class="form-group">
-                            <label for="location">Your Location (for weather)</label>
-                            <input type="text" id="location" placeholder="e.g., New York, London, Tokyo">
+                        <div class="chat-list" id="chat-list">
+                            <!-- Chat history will be loaded here -->
                         </div>
-                        <div class="form-group">
-                            <label for="manual-weather">Or describe the weather manually</label>
-                            <input type="text" id="manual-weather" placeholder="e.g., Hot and sunny, Cold and rainy">
+                    </div>
+                    <div class="chat-main">
+                        <div class="chat-header" id="chat-header">
+                            <h2>Outfit Assistant</h2>
+                            <p class="chat-subtitle">Ask me to put together an outfit for you!</p>
                         </div>
-                        <div class="form-group">
-                            <label for="preferences">Any preferences? (optional)</label>
-                            <textarea id="preferences" placeholder="e.g., I want to wear something comfortable, prefer blue colors..."></textarea>
+                        <div class="chat-messages" id="chat-messages">
+                            <div class="chat-welcome">
+                                <h3>Hi! I'm your personal stylist.</h3>
+                                <p>Tell me what you need an outfit for, and I'll help you put something together from your wardrobe.</p>
+                                <div class="quick-starts">
+                                    <button class="quick-start-btn" onclick="startQuickChat('casual')">Casual day out</button>
+                                    <button class="quick-start-btn" onclick="startQuickChat('work')">Work outfit</button>
+                                    <button class="quick-start-btn" onclick="startQuickChat('date')">Date night</button>
+                                    <button class="quick-start-btn" onclick="startQuickChat('party')">Going to a party</button>
+                                </div>
+                            </div>
                         </div>
-                        <button type="submit" class="btn btn-primary">Get Recommendations</button>
-                    </form>
-                </div>
-                <div id="recommendations-results" class="recommendations-results hidden">
-                    <div class="weather-info" id="weather-info"></div>
-                    <div id="outfits-container"></div>
-                </div>
-                <div id="loading" class="loading hidden">
-                    <div class="spinner"></div>
-                    <p>Finding the perfect outfits for you...</p>
+                        <div class="chat-input-area">
+                            <div class="chat-context-bar" id="chat-context-bar">
+                                <label>
+                                    <span>Location:</span>
+                                    <input type="text" id="chat-location" placeholder="City for weather">
+                                </label>
+                            </div>
+                            <form id="chat-form" class="chat-form">
+                                <textarea id="chat-input" placeholder="Put together an outfit for me..." rows="1"></textarea>
+                                <button type="submit" class="btn btn-primary chat-send-btn" id="chat-send-btn">
+                                    <span>Send</span>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
             </section>
 
