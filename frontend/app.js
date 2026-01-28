@@ -205,7 +205,7 @@ function handleImageSelect(file) {
 // Forms
 function initForms() {
     addForm.addEventListener('submit', handleAddItem);
-    recommendForm.addEventListener('submit', handleGetRecommendations);
+    // Note: recommendForm was replaced with chat-form, handled in initChat()
 }
 
 async function handleAddItem(e) {
