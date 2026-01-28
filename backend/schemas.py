@@ -142,3 +142,41 @@ class ClothingItemNoteResponse(BaseModel):
 
 class ClothingItemWithNotesResponse(ClothingItemResponse):
     notes: list[ClothingItemNoteResponse] = []
+
+
+# Saved outfit schemas (manual outfit creation)
+class SavedOutfitCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    item_ids: list[int]
+
+
+class SavedOutfitUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    item_ids: Optional[list[int]] = None
+
+
+class SavedOutfitResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    item_ids: list[int]
+    items: list[ClothingItemResponse] = []  # Populated with full item details
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SavedOutfitListResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    item_count: int = 0
+    preview_images: list[str] = []  # First few item images for preview
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
