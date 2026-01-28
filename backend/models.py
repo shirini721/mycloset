@@ -75,3 +75,71 @@ class StagedImage(Base):
             "retailer": self.retailer,
             "status": self.status,
         }
+
+
+class OutfitChat(Base):
+    """Chat session for outfit recommendations."""
+    __tablename__ = "outfit_chats"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String)  # Auto-generated or user-provided title
+    event_type = Column(String)  # Initial event type (work, casual, etc.)
+    location = Column(String)  # Location for weather
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "title": self.title,
+            "event_type": self.event_type,
+            "location": self.location,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class OutfitChatMessage(Base):
+    """Individual message in an outfit chat."""
+    __tablename__ = "outfit_chat_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    chat_id = Column(Integer, index=True, nullable=False)  # FK to OutfitChat
+    role = Column(String, nullable=False)  # "user" or "assistant"
+    content = Column(String, nullable=False)  # Message text
+    outfit_data = Column(JSON)  # If assistant message includes outfit recommendations
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "chat_id": self.chat_id,
+            "role": self.role,
+            "content": self.content,
+            "outfit_data": self.outfit_data,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class ClothingItemNote(Base):
+    """User notes/feedback about clothing items (learned from chat)."""
+    __tablename__ = "clothing_item_notes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    item_id = Column(Integer, index=True, nullable=False)  # FK to ClothingItem
+    note = Column(String, nullable=False)  # The feedback/note
+    note_type = Column(String)  # "weather", "occasion", "style", "general"
+    source = Column(String)  # "chat" or "manual"
+    chat_id = Column(Integer)  # If from chat, reference to the chat
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "item_id": self.item_id,
+            "note": self.note,
+            "note_type": self.note_type,
+            "source": self.source,
+            "chat_id": self.chat_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
