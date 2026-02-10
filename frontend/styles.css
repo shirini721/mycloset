@@ -1085,6 +1085,7 @@ body {
     display: flex;
     gap: 24px;
     flex-wrap: wrap;
+    align-items: flex-start;
 }
 
 #outfit-editor .outfit-editor-toolbar {
@@ -1161,6 +1162,9 @@ body {
 .outfit-wardrobe-picker {
     flex: 1;
     min-width: 280px;
+    max-height: 70vh;
+    display: flex;
+    flex-direction: column;
 }
 
 .outfit-wardrobe-picker .section-header {
@@ -1170,8 +1174,9 @@ body {
 #outfit-wardrobe-items {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    grid-auto-rows: min-content;
     gap: 12px;
-    max-height: 60vh;
+    flex: 1;
     overflow-y: auto;
     padding-right: 4px;
 }
